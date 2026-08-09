@@ -1,0 +1,61 @@
+# Vivado
+.vivado/
+.cache/
+.hw/
+.ip_user_files/
+.sim/
+.srcs/
+.gen/
+*.jou
+*.log
+*.str
+*.pb
+*.wdb
+*.wcfg
+
+# Generated Vivado reports
+reports/
+vivado_project/
+vivado_runs/
+
+# Simulation
+*.vcd
+*.fst
+*.wlf
+*.vpd
+
+# Compiled simulation data
+xsim.dir/
+work/
+transcript
+
+# Generated RTL/synthesis artifacts
+*.dcp
+*.bit
+*.bin
+*.ltx
+*.edf
+*.ngc
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Private research PDFs
+references/pdfs/
+references/private/
+
+# Generated result files
+results/generated/
