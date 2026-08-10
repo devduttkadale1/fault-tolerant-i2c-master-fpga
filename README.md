@@ -128,3 +128,33 @@ Research Results
         |
         v
 IEEE Paper
+
+# References
+
+This directory contains references used during the research project.
+
+Copyrighted IEEE papers are not redistributed in this repository.
+Bibliographic information and literature analysis are maintained under
+`docs/literature/`.
+
+## Category A
+
+### A1
+Bollam Eswari, N. Ponmagal, K. Preethi, S. G. Sreejeesh,
+"Implementation of I2C Master Bus Controller on FPGA," 2013.
+
+### A2
+M. Sukhanya, K. Gavaskar,
+"Functional Verification Environment for I2C Master Controller using
+System Verilog," 2017.
+
+### A3
+Thanat Sooknuan, Itsariya Aksonkid, Maitree Thamma,
+Witchupong Wiboonjaroen,
+"Implementation I2C Controller by Using FPGA and Applied for 12 bits ADC,"
+2018.
+
+### A4
+Anagha A, M. Mathurakani,
+"Prototyping of Dual Master I2C Bus Controller," 2016.
+
