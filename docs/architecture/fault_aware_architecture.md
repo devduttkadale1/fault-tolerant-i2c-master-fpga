@@ -477,9 +477,9 @@ safe containment and controlled return to service
 
 ### F1 Recovery Sequence
 
-The F1 controller attempts autonomous bus clear.
+The F1 controller performs an autonomous nine-clock bus-clear sequence.
 
-Conceptual sequence:
+Conceptually:
 
 ```text
 F1 detected
@@ -488,28 +488,23 @@ F1 detected
 release SDA
     |
     v
-begin bus-clear recovery
-    |
-    v
-generate controlled SCL recovery pulse
+generate recovery clock 1
     |
     v
 observe SDA while SCL HIGH
     |
-    +---- SDA HIGH ----> recovery candidate success
+    v
+record first SDA release if observed
     |
-    +---- SDA LOW -----> next recovery pulse
-                             |
-                             v
-                       pulse count < 9?
-                         /        \
-                       YES         NO
-                        |           |
-                        v           v
-                  next pulse    recovery failure
-```
-
-The controller must attempt at most nine recovery clock pulses.
+    v
+continue recovery clocks
+    |
+    v
+complete recovery clock 9
+    |
+    +---- SDA HIGH ----> WAIT_BUS_FREE -> WAIT_TBUF -> success
+    |
+    +---- SDA LOW -----> recovery failure
 
 ### F1 Recovery Success
 
@@ -853,9 +848,21 @@ released before `SCL_STALL_LIMIT_CYCLES` is reached.
 If an external device holds SCL LOW, the controller must release the line and
 wait rather than drive an illegal push-pull HIGH.
 
-### Rule 6 — F1 recovery uses at most nine recovery clocks
+### Rule 6 — F1 recovery generates nine recovery clocks
 
-The bus-clear attempt must not continue indefinitely.
+The normal F1 bus-clear sequence generates exactly nine completed recovery
+clocks.
+
+The controller records the first recovery pulse on which SDA is observed
+released HIGH, but SDA release before the ninth recovery clock does not
+normally terminate the sequence.
+
+If SCL itself remains LOW for `SCL_STALL_LIMIT_CYCLES` while F1 recovery is
+waiting for SCL HIGH, F2 preempts the F1 sequence.
+
+In that case, F1 recovery is abandoned and the controller sequentially
+reclassifies the active condition as `FAULT_SCL_STALL` and enters F2
+containment.
 
 ### Rule 7 — Recovery must not automatically imply success
 

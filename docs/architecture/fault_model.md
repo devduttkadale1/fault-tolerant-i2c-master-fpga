@@ -20,19 +20,61 @@ F1 is asserted when SCL is observed HIGH while SDA remains LOW continuously for 
 
 ### Recovery action
 
-The controller releases SDA and attempts autonomous bus clear using at most nine SCL recovery pulses.
+The controller releases SDA and performs an autonomous bus-clear attempt
+using exactly nine SCL recovery pulses.
 
-SDA is checked during the recovery sequence.
+SDA is observed while SCL is HIGH during each recovery clock.
+
+The controller records the first recovery pulse on which SDA is observed
+released HIGH, but the recovery sequence normally continues until all nine
+recovery clocks have completed.
+
+After the ninth completed recovery clock:
+
+- if SDA is HIGH, the controller proceeds to bus-free and `tBUF`
+  qualification before returning to service;
+- if SDA remains LOW, autonomous F1 recovery is considered failed.
+
+If SCL remains LOW for `SCL_STALL_LIMIT_CYCLES` while the controller is
+attempting an F1 recovery clock, F1 recovery is abandoned.
+
+The active condition is then sequentially reclassified as F2
+`SCL_STALL`, and control transfers to F2 containment.
+
+Only one primary fault classification is active at a time.
+
+SDA is observed during each recovery clock while SCL is HIGH.
+
+The controller records the first recovery pulse on which SDA is observed
+released HIGH, but the recovery-clock sequence continues until all nine
+recovery clocks have completed.
 
 ### Recovery success
 
-Recovery succeeds when SDA is observed released HIGH and the bus can subsequently satisfy the free-bus condition.
+After nine recovery clocks have completed, recovery may proceed only if SDA
+is observed HIGH.
 
-The controller then waits the required bus-free interval before returning to IDLE.
+The controller then releases SDA and SCL, waits for the bus to satisfy the
+free-bus condition continuously for the required `tBUF` interval, and
+returns to IDLE.
 
 ### Recovery failure
 
-If SDA does not release within nine recovery clocks, the controller releases its bus drives and reports recovery failure.
+If SDA remains LOW after all nine recovery clocks have completed, the
+controller releases its bus drives and reports recovery failure.
+
+### SCL stall during F1 recovery
+
+F1 recovery requires the controller to release SCL during every recovery
+clock.
+
+If actual SCL remains LOW for `SCL_STALL_LIMIT_CYCLES` while F1 recovery is
+waiting for SCL HIGH, the F1 bus-clear sequence is abandoned.
+
+The active classification changes sequentially to F2 `SCL_STALL`, and
+control transfers to F2 containment.
+
+Only one fault code is active at a time.
 
 ## F2 — Prolonged SCL LOW
 
@@ -40,7 +82,7 @@ If SDA does not release within nine recovery clocks, the controller releases its
 
 F2 monitoring is active only when the controller has released SCL and expects the actual bus SCL level to become HIGH.
 
-The controllers intentional SCL LOW phase is not counted as F2.
+The controller's intentional SCL LOW phase
 
 ### Detection condition
 

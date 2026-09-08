@@ -146,12 +146,26 @@ Normal SDA LOW periods must not trigger F1.
 The controller:
 
 1. releases SDA;
-2. generates controlled SCL recovery pulses;
-3. observes whether SDA is released;
-4. attempts at most nine recovery clocks;
-5. waits for the required free-bus interval following successful
-   recovery;
-6. returns to IDLE after successful recovery.
+2. generates controlled SCL recovery clocks;
+3. observes SDA while SCL is HIGH;
+4. records the first recovery pulse on which SDA is released;
+5. completes exactly nine recovery clocks unless F2 preempts the sequence
+   because SCL itself becomes stalled;
+6. checks SDA after the ninth completed recovery clock;
+7. waits for the required free-bus interval following successful recovery;
+8. returns to IDLE after successful recovery.
+
+If SDA remains LOW after nine completed recovery clocks, autonomous F1
+recovery is considered unsuccessful.
+
+### F1-to-F2 Reclassification
+
+If SCL remains LOW for `SCL_STALL_LIMIT_CYCLES` while the controller is
+attempting an F1 recovery clock, the bus-clear sequence cannot continue.
+
+The controller therefore abandons F1 recovery, sequentially reclassifies
+the active condition as F2 `SCL_STALL`, releases the bus, and enters F2
+containment.
 
 ### Failure
 
