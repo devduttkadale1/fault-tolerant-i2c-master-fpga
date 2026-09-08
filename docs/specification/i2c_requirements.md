@@ -104,7 +104,7 @@ I2C supports multi-master operation.
 
 During arbitration, a master monitors the actual SDA bus level while transmitting. If a master releases SDA HIGH but observes SDA LOW while SCL is HIGH, it can detect that it has lost arbitration.
 
-Arbitration support will be evaluated as part of the final controller architecture.
+Arbitration loss is legal multi-controller I2C behavior; final arbitration support depends on the frozen project scope.
 
 ---
 
@@ -112,7 +112,7 @@ Arbitration support will be evaluated as part of the final controller architectu
 
 A bus-clear mechanism can be used when the I2C bus becomes stuck, particularly when SDA is held LOW.
 
-A typical recovery approach involves generating controlled SCL pulses and checking whether the target device eventually releases SDA.
+For SDA stuck LOW, UM10204 recommends nine controller-generated SCL pulses; SCL stuck LOW requires different recovery, typically hardware reset or power cycling.
 
 The fault-tolerant controller should distinguish between:
 
@@ -149,13 +149,12 @@ The fault-tolerant controller will consider abnormal conditions such as:
 
 - SDA stuck LOW
 - SCL stuck LOW
-- Missing ACK
-- Unexpected NACK
-- Excessive clock stretching
+- Repeated unsuccessful ACK/NACK outcome (candidate implementation-policy condition)
+- Prolonged SCL LOW beyond an implementation-defined threshold
 - Unexpected SDA/SCL bus state
 - Incomplete transaction
 - Reset during an active transaction
-- Arbitration loss, if multi-master operation is implemented
+- Arbitration loss as legal multi-controller behavior, not a primary fault candidate
 
 The intended fault-handling flow is:
 
@@ -171,4 +170,4 @@ Important research measurements will include:
 - Timing impact
 - Power impact
 
-The final fault model and recovery mechanism will be finalized after completing the literature survey.
+The final fault model and recovery mechanism will be frozen only after A+B+D synthesis, authoritative specification verification, and S2-S4 design/verification validation.

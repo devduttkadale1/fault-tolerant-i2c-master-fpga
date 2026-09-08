@@ -2,8 +2,8 @@
 
 Research-oriented RTL, verification, and FPGA evaluation of an I2C master controller with hardware support for selected abnormal bus conditions.
 
-> **Project status:** A+B+D literature synthesis complete; authoritative I2C specification verification in progress.  
-> **Final research gap:** Not yet frozen.  
+> **Project status:** A+B+D literature synthesis complete; authoritative I2C specification verification in progress.
+> **Final research gap:** Not yet frozen.
 > **Final fault model / recovery architecture:** Not yet frozen.
 
 ---
