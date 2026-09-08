@@ -1,29 +1,29 @@
-# Research Questions
+# Working Research Questions
 
-## RQ1
+> These working RQs are frozen provisionally after S2 and will be finalized after S3/S4 validation.
 
-What fault conditions are insufficiently addressed by conventional
-FPGA I2C master controllers?
+## WRQ1 — Detection and Discrimination
 
-## RQ2
+Can an FPGA I2C master reliably detect SDA-stuck-LOW and implementation-defined prolonged-SCL-LOW conditions without falsely classifying legal I2C behavior, particularly legitimate clock stretching?
 
-How can an FPGA I2C master detect abnormal bus conditions with
-low hardware overhead?
+## WRQ2 — SDA Recovery Effectiveness
 
-## RQ3
+How effectively can autonomous nine-clock bus-clear control restore operation after SDA-stuck-LOW conditions under different SDA-release scenarios?
 
-How can legitimate clock stretching be distinguished from persistent
-bus faults?
+## WRQ3 — SCL-Stall Containment
 
-## RQ4
+Can a configurable prolonged-SCL detector safely contain or terminate a stalled transaction and return the controller to a usable state after the external bus condition is removed?
 
-What is the trade-off between fault detection/recovery capability
-and FPGA resource utilization?
+## WRQ4 — Latency and Post-Recovery Correctness
 
-## RQ5
+What are the detection latency, recovery or containment latency, and post-recovery transaction-success characteristics for the supported abnormal conditions?
 
-What is the effect of fault-tolerance mechanisms on timing,
-latency and power?
+## WRQ5 — FPGA Implementation Cost
 
-The final research question will be selected after the literature
-survey is complete.
+What incremental LUT, FF, timing/Fmax, and normal-operation latency overhead is introduced by the fault-management extension relative to a matched conventional I2C-master baseline?
+
+## Status
+
+These are working research questions, not final publication claims.
+
+Their exact wording may change if S3 or S4 exposes an architectural, protocol, measurement, or verification inconsistency.
