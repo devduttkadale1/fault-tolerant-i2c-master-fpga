@@ -521,34 +521,428 @@ module i2c_master_core #(
 
                     end
 
-                    /*
+                                        /*
                      * ====================================================
-                     * ADDRESS ACK PLACEHOLDER
+                     * ADDRESS ACK / NACK
                      * ====================================================
                      *
-                     * Safe temporary endpoint for S5.2B.
+                     * SDA is released for the ninth clock.
                      *
-                     * The testbench terminates before depending on this
-                     * state. S5.3 replaces this placeholder with the real
-                     * ninth-clock ACK sampling sequence.
+                     * The target:
+                     *
+                     *   SDA LOW  -> ACK
+                     *   SDA HIGH -> NACK
+                     *
+                     * SDA is sampled near the middle of the actual SCL
+                     * HIGH interval.
                      */
 
                     ST_ADDR_ACK: begin
+
+                        busy               <= 1'b1;
+                        transaction_active <= 1'b1;
+                        expect_bus_free    <= 1'b0;
+
+                        case (bit_phase)
+
+                            /*
+                             * Ninth-clock LOW interval.
+                             */
+                            PH_LOW_SETUP: begin
+
+                                scl_drive_low        <= 1'b1;
+
+                                /*
+                                 * Release SDA so the target owns ACK/NACK.
+                                 */
+                                sda_drive_low        <= 1'b0;
+
+                                waiting_for_scl_high <= 1'b0;
+
+                                /*
+                                 * Clear any previous NACK result before
+                                 * sampling this ACK clock.
+                                 */
+                                nack <= 1'b0;
+
+                                if (
+                                    timing_counter >=
+                                    (HALF_PERIOD_CYCLES - 1)
+                                ) begin
+
+                                    timing_counter       <= 32'd0;
+
+                                    /*
+                                     * Release SCL for ninth HIGH phase.
+                                     */
+                                    scl_drive_low        <= 1'b0;
+                                    waiting_for_scl_high <= 1'b1;
+                                    bit_phase            <=
+                                        PH_RELEASE_HIGH;
+
+                                end
+                                else begin
+
+                                    timing_counter <=
+                                        timing_counter + 1'b1;
+
+                                end
+
+                            end
+
+                            /*
+                             * Wait for actual SCL HIGH.
+                             *
+                             * This retains legal clock-stretch support
+                             * during the ACK clock as well.
+                             */
+                            PH_RELEASE_HIGH: begin
+
+                                scl_drive_low        <= 1'b0;
+                                sda_drive_low        <= 1'b0;
+
+                                timing_counter       <= 32'd0;
+                                waiting_for_scl_high <= 1'b1;
+
+                                if (scl_in) begin
+
+                                    waiting_for_scl_high <= 1'b0;
+                                    bit_phase            <= PH_HIGH_HOLD;
+
+                                end
+
+                            end
+
+                            /*
+                             * Ninth-clock HIGH interval.
+                             */
+                            PH_HIGH_HOLD: begin
+
+                                scl_drive_low <= 1'b0;
+                                sda_drive_low <= 1'b0;
+
+                                if (!scl_in) begin
+
+                                    /*
+                                     * Do not count LOW time as HIGH time.
+                                     * If the HIGH interval is interrupted,
+                                     * restart qualification and resample
+                                     * ACK/NACK after SCL returns HIGH.
+                                     */
+                                    timing_counter       <= 32'd0;
+                                    waiting_for_scl_high <= 1'b1;
+                                    bit_phase            <=
+                                        PH_RELEASE_HIGH;
+
+                                    nack <= 1'b0;
+
+                                end
+                                else begin
+
+                                    waiting_for_scl_high <= 1'b0;
+
+                                    /*
+                                     * Sample ACK/NACK near the center of
+                                     * the actual SCL HIGH interval.
+                                     */
+                                    if (
+                                        timing_counter ==
+                                        ((HALF_PERIOD_CYCLES / 2) - 1)
+                                    ) begin
+
+                                        nack <= sda_in;
+
+                                    end
+
+                                    if (
+                                        timing_counter >=
+                                        (HALF_PERIOD_CYCLES - 1)
+                                    ) begin
+
+                                        timing_counter <= 32'd0;
+
+                                        /*
+                                         * Finish ninth clock by pulling
+                                         * SCL LOW.
+                                         */
+                                        scl_drive_low <= 1'b1;
+
+                                        /*
+                                         * Keep SDA released here.
+                                         *
+                                         * If NACK occurred, ST_STOP first
+                                         * establishes SDA LOW while SCL is
+                                         * already LOW before generating
+                                         * STOP.
+                                         */
+                                        sda_drive_low <= 1'b0;
+
+                                        bit_phase <= PH_LOW_SETUP;
+
+                                        if (nack) begin
+
+                                            state <= ST_STOP;
+
+                                        end
+                                        else if (latched_rw) begin
+
+                                            state <= ST_READ_DATA;
+
+                                        end
+                                        else begin
+
+                                            state <= ST_WRITE_DATA;
+
+                                        end
+
+                                    end
+                                    else begin
+
+                                        timing_counter <=
+                                            timing_counter + 1'b1;
+
+                                    end
+
+                                end
+
+                            end
+
+                            default: begin
+
+                                bit_phase            <= PH_LOW_SETUP;
+                                timing_counter       <= 32'd0;
+
+                                scl_drive_low        <= 1'b1;
+                                sda_drive_low        <= 1'b0;
+
+                                waiting_for_scl_high <= 1'b0;
+                                nack                 <= 1'b0;
+
+                            end
+
+                        endcase
+
+                    end
+
+                    /*
+                     * ====================================================
+                     * WRITE/READ PLACEHOLDERS
+                     * ====================================================
+                     *
+                     * An ACK proves that the address was accepted.
+                     *
+                     * S5.4 and S5.5 replace these safe placeholders with
+                     * the real data-transfer engines.
+                     */
+
+                    ST_WRITE_DATA: begin
 
                         busy                   <= 1'b1;
                         transaction_active     <= 1'b1;
                         expect_bus_free        <= 1'b0;
                         waiting_for_scl_high   <= 1'b0;
 
-                        sda_drive_low          <= 1'b0;
-                        scl_drive_low          <= 1'b1;
+                        /*
+                         * Hold a safe LOW clock while S5.4 has not yet
+                         * implemented the write-data byte.
+                         */
+                        scl_drive_low <= 1'b1;
+                        sda_drive_low <= 1'b0;
 
-                        timing_counter         <= 32'd0;
+                        timing_counter <= 32'd0;
+                        bit_phase      <= PH_LOW_SETUP;
+
+                    end
+
+                    ST_READ_DATA: begin
+
+                        busy                   <= 1'b1;
+                        transaction_active     <= 1'b1;
+                        expect_bus_free        <= 1'b0;
+                        waiting_for_scl_high   <= 1'b0;
+
+                        /*
+                         * Hold a safe LOW clock while S5.5 has not yet
+                         * implemented the read-data byte.
+                         */
+                        scl_drive_low <= 1'b1;
+                        sda_drive_low <= 1'b0;
+
+                        timing_counter <= 32'd0;
+                        bit_phase      <= PH_LOW_SETUP;
 
                     end
 
                     /*
-                     * Remaining states are implemented in later S5 steps.
+                     * ====================================================
+                     * STOP
+                     * ====================================================
+                     *
+                     * STOP sequence:
+                     *
+                     *   1. SCL LOW, establish SDA LOW.
+                     *   2. Hold LOW interval.
+                     *   3. Release SCL.
+                     *   4. Wait until actual SCL is HIGH.
+                     *   5. Hold SDA LOW with SCL HIGH for setup time.
+                     *   6. Release SDA while SCL remains HIGH.
+                     */
+
+                    ST_STOP: begin
+
+                        busy               <= 1'b1;
+                        transaction_active <= 1'b1;
+                        expect_bus_free    <= 1'b0;
+
+                        case (bit_phase)
+
+                            PH_LOW_SETUP: begin
+
+                                scl_drive_low        <= 1'b1;
+                                sda_drive_low        <= 1'b1;
+
+                                waiting_for_scl_high <= 1'b0;
+
+                                if (
+                                    timing_counter >=
+                                    (HALF_PERIOD_CYCLES - 1)
+                                ) begin
+
+                                    timing_counter       <= 32'd0;
+
+                                    /*
+                                     * Release SCL while SDA stays LOW.
+                                     */
+                                    scl_drive_low        <= 1'b0;
+                                    waiting_for_scl_high <= 1'b1;
+                                    bit_phase            <=
+                                        PH_RELEASE_HIGH;
+
+                                end
+                                else begin
+
+                                    timing_counter <=
+                                        timing_counter + 1'b1;
+
+                                end
+
+                            end
+
+                            PH_RELEASE_HIGH: begin
+
+                                scl_drive_low        <= 1'b0;
+                                sda_drive_low        <= 1'b1;
+
+                                timing_counter       <= 32'd0;
+                                waiting_for_scl_high <= 1'b1;
+
+                                if (scl_in) begin
+
+                                    waiting_for_scl_high <= 1'b0;
+                                    bit_phase            <= PH_HIGH_HOLD;
+
+                                end
+
+                            end
+
+                            PH_HIGH_HOLD: begin
+
+                                scl_drive_low <= 1'b0;
+                                sda_drive_low <= 1'b1;
+
+                                if (!scl_in) begin
+
+                                    timing_counter       <= 32'd0;
+                                    waiting_for_scl_high <= 1'b1;
+                                    bit_phase            <=
+                                        PH_RELEASE_HIGH;
+
+                                end
+                                else begin
+
+                                    waiting_for_scl_high <= 1'b0;
+
+                                    if (
+                                        timing_counter >=
+                                        (HALF_PERIOD_CYCLES - 1)
+                                    ) begin
+
+                                        timing_counter <= 32'd0;
+
+                                        /*
+                                         * SDA LOW -> HIGH while SCL HIGH:
+                                         * this is the STOP condition.
+                                         */
+                                        sda_drive_low <= 1'b0;
+                                        scl_drive_low <= 1'b0;
+
+                                        bit_phase <= PH_LOW_SETUP;
+                                        state     <= ST_DONE;
+
+                                    end
+                                    else begin
+
+                                        timing_counter <=
+                                            timing_counter + 1'b1;
+
+                                    end
+
+                                end
+
+                            end
+
+                            default: begin
+
+                                bit_phase            <= PH_LOW_SETUP;
+                                timing_counter       <= 32'd0;
+
+                                scl_drive_low        <= 1'b1;
+                                sda_drive_low        <= 1'b1;
+
+                                waiting_for_scl_high <= 1'b0;
+
+                            end
+
+                        endcase
+
+                    end
+
+                    /*
+                     * ====================================================
+                     * DONE
+                     * ====================================================
+                     */
+
+                    ST_DONE: begin
+
+                        busy                   <= 1'b0;
+                        done                   <= 1'b1;
+
+                        transaction_active     <= 1'b0;
+                        expect_bus_free        <= 1'b1;
+                        waiting_for_scl_high   <= 1'b0;
+
+                        sda_drive_low          <= 1'b0;
+                        scl_drive_low          <= 1'b0;
+
+                        timing_counter         <= 32'd0;
+                        bus_free_counter       <= 32'd0;
+
+                        /*
+                         * Return to IDLE immediately after generating the
+                         * one-system-clock DONE pulse.
+                         *
+                         * IDLE then requalifies tBUF before cmd_ready.
+                         */
+                        state     <= ST_IDLE;
+                        bit_phase <= PH_LOW_SETUP;
+
+                    end
+
+                    /*
+                     * ====================================================
+                     * SAFE DEFAULT
+                     * ====================================================
                      */
 
                     default: begin
