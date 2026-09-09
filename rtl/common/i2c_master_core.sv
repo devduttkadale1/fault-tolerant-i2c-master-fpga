@@ -34,33 +34,23 @@ module i2c_master_core #(
 
     /*
      * ================================================================
-     * Timing parameters
+     * Timing
      * ================================================================
-     *
-     * Frozen primary configuration:
-     *
-     * SYS_CLK_HZ = 100 MHz
-     * I2C_CLK_HZ = 100 kHz
      */
 
     localparam integer HALF_PERIOD_CYCLES =
         SYS_CLK_HZ / (2 * I2C_CLK_HZ);
 
     /*
-     * Standard-mode tBUF minimum = 4.7 us.
-     *
-     * At 100 MHz:
-     *
-     * 100 clocks/us * 4.7 us = 470 system-clock cycles.
-     *
-     * The current project validates the frozen 100-MHz configuration.
+     * Standard-mode minimum tBUF = 4.7 us.
+     * Frozen configuration: 100 MHz -> 470 cycles.
      */
     localparam integer T_BUF_CYCLES =
         (SYS_CLK_HZ / 1_000_000) * 47 / 10;
 
     /*
      * ================================================================
-     * Transaction state
+     * Transaction FSM
      * ================================================================
      */
 
@@ -81,7 +71,7 @@ module i2c_master_core #(
 
     /*
      * ================================================================
-     * Bit/timing phase
+     * Bit timing phases
      * ================================================================
      */
 
@@ -116,11 +106,6 @@ module i2c_master_core #(
      * ================================================================
      * Command-ready qualification
      * ================================================================
-     *
-     * A new command may be accepted only after the bus has remained
-     * continuously free for the required tBUF interval.
-     *
-     * Command acceptance itself is added in S5.3 with START generation.
      */
 
     always_comb begin
@@ -170,33 +155,31 @@ module i2c_master_core #(
         else begin
 
             /*
-             * done is a pulse in the final implementation.
+             * done is a one-cycle pulse in the completed design.
              */
             done <= 1'b0;
 
             /*
-             * Baseline ties fault_abort LOW.
-             *
-             * This hook is retained so the S6 fault-aware wrapper can
-             * safely terminate the common protocol engine.
+             * S6 fault-aware integration hook.
+             * Baseline permanently drives fault_abort LOW.
              */
             if (fault_abort) begin
 
-                state                <= ST_IDLE;
-                bit_phase            <= PH_LOW_SETUP;
+                state                  <= ST_IDLE;
+                bit_phase              <= PH_LOW_SETUP;
 
-                timing_counter       <= 32'd0;
-                bus_free_counter     <= 32'd0;
+                timing_counter         <= 32'd0;
+                bus_free_counter       <= 32'd0;
 
-                busy                 <= 1'b0;
-                nack                 <= 1'b0;
+                busy                   <= 1'b0;
+                nack                   <= 1'b0;
 
-                sda_drive_low        <= 1'b0;
-                scl_drive_low        <= 1'b0;
+                sda_drive_low          <= 1'b0;
+                scl_drive_low          <= 1'b0;
 
-                expect_bus_free      <= 1'b1;
-                waiting_for_scl_high <= 1'b0;
-                transaction_active   <= 1'b0;
+                expect_bus_free        <= 1'b1;
+                waiting_for_scl_high   <= 1'b0;
+                transaction_active     <= 1'b0;
 
             end
             else begin
@@ -211,35 +194,24 @@ module i2c_master_core #(
 
                     ST_IDLE: begin
 
-                        busy                 <= 1'b0;
-                        transaction_active   <= 1'b0;
+                        busy                   <= 1'b0;
+                        transaction_active     <= 1'b0;
+                        expect_bus_free        <= 1'b1;
+                        waiting_for_scl_high   <= 1'b0;
 
-                        expect_bus_free      <= 1'b1;
-                        waiting_for_scl_high <= 1'b0;
+                        sda_drive_low          <= 1'b0;
+                        scl_drive_low          <= 1'b0;
 
-                        /*
-                         * Open-drain idle state:
-                         *
-                         * 0 means RELEASE.
-                         */
-                        sda_drive_low <= 1'b0;
-                        scl_drive_low <= 1'b0;
-
-                        timing_counter <= 32'd0;
+                        timing_counter         <= 32'd0;
 
                         /*
-                         * tBUF requires continuous bus-free observation.
-                         *
-                         * Any LOW level resets qualification.
+                         * Bus must remain continuously HIGH/HIGH for tBUF.
                          */
                         if (sda_in && scl_in) begin
 
                             if (bus_free_counter < T_BUF_CYCLES)
                                 bus_free_counter <=
                                     bus_free_counter + 1'b1;
-                            else
-                                bus_free_counter <=
-                                    bus_free_counter;
 
                         end
                         else begin
@@ -248,32 +220,354 @@ module i2c_master_core #(
 
                         end
 
+                        /*
+                         * Command acceptance.
+                         *
+                         * Guard actual bus inputs as well as cmd_ready so
+                         * a newly disturbed bus cannot be accepted.
+                         */
+                        if (
+                            cmd_valid &&
+                            cmd_ready &&
+                            sda_in &&
+                            scl_in
+                        ) begin
+
+                            latched_rw       <= cmd_rw;
+                            latched_addr     <= cmd_addr;
+                            latched_wdata    <= cmd_wdata;
+
+                            /*
+                             * Address byte:
+                             *
+                             * [7:1] = 7-bit address
+                             * [0]   = R/W
+                             */
+                            tx_shift         <= {cmd_addr, cmd_rw};
+                            bit_index        <= 4'd7;
+
+                            busy             <= 1'b1;
+                            nack             <= 1'b0;
+
+                            transaction_active <= 1'b1;
+                            expect_bus_free    <= 1'b0;
+
+                            bus_free_counter <= 32'd0;
+                            timing_counter   <= 32'd0;
+
+                            /*
+                             * Generate START:
+                             *
+                             * SDA HIGH -> LOW while actual SCL is HIGH.
+                             */
+                            sda_drive_low    <= 1'b1;
+                            scl_drive_low    <= 1'b0;
+
+                            state            <= ST_START;
+
+                        end
+
                     end
 
                     /*
-                     * Remaining transaction states are deliberately
-                     * unreachable in S5.2A.
+                     * ====================================================
+                     * START HOLD
+                     * ====================================================
                      *
-                     * START generation and command acceptance are added
-                     * only after the IDLE/bus-free behavior passes.
+                     * START was generated when command acceptance pulled
+                     * SDA LOW while SCL was HIGH.
+                     *
+                     * Hold the START condition before beginning the first
+                     * SCL LOW interval.
+                     */
+
+                    ST_START: begin
+
+                        busy                   <= 1'b1;
+                        transaction_active     <= 1'b1;
+                        expect_bus_free        <= 1'b0;
+
+                        sda_drive_low          <= 1'b1;
+                        scl_drive_low          <= 1'b0;
+
+                        /*
+                         * If actual SCL is unexpectedly held LOW while the
+                         * controller has released it, wait for it to return
+                         * HIGH rather than forcing HIGH.
+                         */
+                        if (!scl_in) begin
+
+                            waiting_for_scl_high <= 1'b1;
+                            timing_counter       <= 32'd0;
+
+                        end
+                        else begin
+
+                            waiting_for_scl_high <= 1'b0;
+
+                            if (
+                                timing_counter >=
+                                (HALF_PERIOD_CYCLES - 1)
+                            ) begin
+
+                                timing_counter <= 32'd0;
+
+                                /*
+                                 * Begin first address-bit LOW interval.
+                                 */
+                                scl_drive_low  <= 1'b1;
+
+                                /*
+                                 * Open drain:
+                                 * bit 0 -> drive LOW
+                                 * bit 1 -> release
+                                 */
+                                sda_drive_low  <= ~tx_shift[7];
+
+                                bit_index      <= 4'd7;
+                                bit_phase      <= PH_LOW_SETUP;
+                                state          <= ST_SEND_ADDR;
+
+                            end
+                            else begin
+
+                                timing_counter <=
+                                    timing_counter + 1'b1;
+
+                            end
+
+                        end
+
+                    end
+
+                    /*
+                     * ====================================================
+                     * ADDRESS TRANSMISSION
+                     * ====================================================
+                     *
+                     * This stage introduces the real reusable bit-timing
+                     * engine.
+                     *
+                     * S5.2B validates START, LOW timing, SCL release,
+                     * actual-SCL observation, clock stretching and HIGH
+                     * timing.
+                     *
+                     * S5.3 will implement the address ACK state.
+                     */
+
+                    ST_SEND_ADDR: begin
+
+                        busy                   <= 1'b1;
+                        transaction_active     <= 1'b1;
+                        expect_bus_free        <= 1'b0;
+
+                        case (bit_phase)
+
+                            /*
+                             * --------------------------------------------
+                             * LOW + DATA SETUP
+                             * --------------------------------------------
+                             */
+
+                            PH_LOW_SETUP: begin
+
+                                scl_drive_low        <= 1'b1;
+                                sda_drive_low        <=
+                                    ~tx_shift[bit_index];
+
+                                waiting_for_scl_high <= 1'b0;
+
+                                if (
+                                    timing_counter >=
+                                    (HALF_PERIOD_CYCLES - 1)
+                                ) begin
+
+                                    timing_counter       <= 32'd0;
+
+                                    /*
+                                     * Release SCL.
+                                     *
+                                     * HIGH timing must NOT start until
+                                     * actual scl_in is observed HIGH.
+                                     */
+                                    scl_drive_low        <= 1'b0;
+                                    waiting_for_scl_high <= 1'b1;
+                                    bit_phase            <=
+                                        PH_RELEASE_HIGH;
+
+                                end
+                                else begin
+
+                                    timing_counter <=
+                                        timing_counter + 1'b1;
+
+                                end
+
+                            end
+
+                            /*
+                             * --------------------------------------------
+                             * RELEASE SCL / CLOCK-STRETCH WAIT
+                             * --------------------------------------------
+                             */
+
+                            PH_RELEASE_HIGH: begin
+
+                                scl_drive_low        <= 1'b0;
+                                sda_drive_low        <=
+                                    ~tx_shift[bit_index];
+
+                                timing_counter       <= 32'd0;
+                                waiting_for_scl_high <= 1'b1;
+
+                                if (scl_in) begin
+
+                                    waiting_for_scl_high <= 1'b0;
+                                    bit_phase            <= PH_HIGH_HOLD;
+
+                                end
+
+                            end
+
+                            /*
+                             * --------------------------------------------
+                             * ACTUAL SCL HIGH HOLD
+                             * --------------------------------------------
+                             */
+
+                            PH_HIGH_HOLD: begin
+
+                                scl_drive_low <= 1'b0;
+                                sda_drive_low <=
+                                    ~tx_shift[bit_index];
+
+                                /*
+                                 * If actual SCL ceases to be HIGH, do not
+                                 * count that interval as HIGH timing.
+                                 */
+                                if (!scl_in) begin
+
+                                    timing_counter       <= 32'd0;
+                                    waiting_for_scl_high <= 1'b1;
+                                    bit_phase            <=
+                                        PH_RELEASE_HIGH;
+
+                                end
+                                else begin
+
+                                    waiting_for_scl_high <= 1'b0;
+
+                                    if (
+                                        timing_counter >=
+                                        (HALF_PERIOD_CYCLES - 1)
+                                    ) begin
+
+                                        timing_counter <= 32'd0;
+
+                                        /*
+                                         * Return SCL LOW.
+                                         */
+                                        scl_drive_low <= 1'b1;
+
+                                        if (bit_index == 0) begin
+
+                                            /*
+                                             * Release SDA for target ACK.
+                                             *
+                                             * ACK timing is implemented in
+                                             * S5.3.
+                                             */
+                                            sda_drive_low <= 1'b0;
+                                            bit_phase     <= PH_LOW_SETUP;
+                                            state         <= ST_ADDR_ACK;
+
+                                        end
+                                        else begin
+
+                                            bit_index <= bit_index - 1'b1;
+
+                                            sda_drive_low <=
+                                                ~tx_shift[bit_index - 1'b1];
+
+                                            bit_phase <= PH_LOW_SETUP;
+
+                                        end
+
+                                    end
+                                    else begin
+
+                                        timing_counter <=
+                                            timing_counter + 1'b1;
+
+                                    end
+
+                                end
+
+                            end
+
+                            default: begin
+
+                                bit_phase              <= PH_LOW_SETUP;
+                                timing_counter         <= 32'd0;
+                                waiting_for_scl_high   <= 1'b0;
+
+                                scl_drive_low          <= 1'b1;
+                                sda_drive_low          <=
+                                    ~tx_shift[bit_index];
+
+                            end
+
+                        endcase
+
+                    end
+
+                    /*
+                     * ====================================================
+                     * ADDRESS ACK PLACEHOLDER
+                     * ====================================================
+                     *
+                     * Safe temporary endpoint for S5.2B.
+                     *
+                     * The testbench terminates before depending on this
+                     * state. S5.3 replaces this placeholder with the real
+                     * ninth-clock ACK sampling sequence.
+                     */
+
+                    ST_ADDR_ACK: begin
+
+                        busy                   <= 1'b1;
+                        transaction_active     <= 1'b1;
+                        expect_bus_free        <= 1'b0;
+                        waiting_for_scl_high   <= 1'b0;
+
+                        sda_drive_low          <= 1'b0;
+                        scl_drive_low          <= 1'b1;
+
+                        timing_counter         <= 32'd0;
+
+                    end
+
+                    /*
+                     * Remaining states are implemented in later S5 steps.
                      */
 
                     default: begin
 
-                        state                <= ST_IDLE;
-                        bit_phase            <= PH_LOW_SETUP;
+                        state                  <= ST_IDLE;
+                        bit_phase              <= PH_LOW_SETUP;
 
-                        timing_counter       <= 32'd0;
-                        bus_free_counter     <= 32'd0;
+                        timing_counter         <= 32'd0;
+                        bus_free_counter       <= 32'd0;
 
-                        busy                 <= 1'b0;
+                        busy                   <= 1'b0;
+                        nack                   <= 1'b0;
 
-                        sda_drive_low        <= 1'b0;
-                        scl_drive_low        <= 1'b0;
+                        sda_drive_low          <= 1'b0;
+                        scl_drive_low          <= 1'b0;
 
-                        expect_bus_free      <= 1'b1;
-                        waiting_for_scl_high <= 1'b0;
-                        transaction_active   <= 1'b0;
+                        expect_bus_free        <= 1'b1;
+                        waiting_for_scl_high   <= 1'b0;
+                        transaction_active     <= 1'b0;
 
                     end
 
