@@ -684,12 +684,23 @@ module i2c_master_core #(
                                             state <= ST_STOP;
 
                                         end
-                                        else if (latched_rw) begin
+                                                                                else if (latched_rw) begin
+
+                                            /*
+                                             * Address ACKed for READ.
+                                             *
+                                             * Release SDA so the target owns
+                                             * the eight incoming data bits.
+                                             */
+                                            rx_shift      <= 8'h00;
+                                            bit_index     <= 4'd7;
+
+                                            sda_drive_low <= 1'b0;
 
                                             state <= ST_READ_DATA;
 
                                         end
-                                                                                else begin
+                                        else begin
 
                                             /*
                                              * Address ACKed for WRITE.
@@ -1079,22 +1090,334 @@ module i2c_master_core #(
 
                     end
 
+                                        /*
+                     * ====================================================
+                     * READ DATA BYTE
+                     * ====================================================
+                     *
+                     * The target owns SDA for all eight data bits.
+                     *
+                     * The controller:
+                     *
+                     *   - keeps SDA released;
+                     *   - generates SCL;
+                     *   - honors target clock stretching;
+                     *   - samples SDA during actual SCL HIGH;
+                     *   - stores bits MSB first.
+                     */
+
                     ST_READ_DATA: begin
 
-                        busy                   <= 1'b1;
-                        transaction_active     <= 1'b1;
-                        expect_bus_free        <= 1'b0;
-                        waiting_for_scl_high   <= 1'b0;
+                        busy               <= 1'b1;
+                        transaction_active <= 1'b1;
+                        expect_bus_free    <= 1'b0;
 
-                        /*
-                         * Hold a safe LOW clock while S5.5 has not yet
-                         * implemented the read-data byte.
-                         */
-                        scl_drive_low <= 1'b1;
-                        sda_drive_low <= 1'b0;
+                        case (bit_phase)
 
-                        timing_counter <= 32'd0;
-                        bit_phase      <= PH_LOW_SETUP;
+                            /*
+                             * --------------------------------------------
+                             * READ BIT LOW INTERVAL
+                             * --------------------------------------------
+                             */
+
+                            PH_LOW_SETUP: begin
+
+                                scl_drive_low <= 1'b1;
+
+                                /*
+                                 * Never drive SDA while receiving data.
+                                 */
+                                sda_drive_low <= 1'b0;
+
+                                waiting_for_scl_high <= 1'b0;
+
+                                if (
+                                    timing_counter >=
+                                    (HALF_PERIOD_CYCLES - 1)
+                                ) begin
+
+                                    timing_counter <= 32'd0;
+
+                                    scl_drive_low        <= 1'b0;
+                                    waiting_for_scl_high <= 1'b1;
+
+                                    bit_phase <= PH_RELEASE_HIGH;
+
+                                end
+                                else begin
+
+                                    timing_counter <=
+                                        timing_counter + 1'b1;
+
+                                end
+
+                            end
+
+                            /*
+                             * --------------------------------------------
+                             * WAIT FOR ACTUAL SCL HIGH
+                             * --------------------------------------------
+                             */
+
+                            PH_RELEASE_HIGH: begin
+
+                                scl_drive_low <= 1'b0;
+                                sda_drive_low <= 1'b0;
+
+                                timing_counter       <= 32'd0;
+                                waiting_for_scl_high <= 1'b1;
+
+                                if (scl_in) begin
+
+                                    waiting_for_scl_high <= 1'b0;
+                                    bit_phase            <= PH_HIGH_HOLD;
+
+                                end
+
+                            end
+
+                            /*
+                             * --------------------------------------------
+                             * READ BIT HIGH INTERVAL
+                             * --------------------------------------------
+                             */
+
+                            PH_HIGH_HOLD: begin
+
+                                scl_drive_low <= 1'b0;
+                                sda_drive_low <= 1'b0;
+
+                                if (!scl_in) begin
+
+                                    /*
+                                     * If actual SCL goes LOW, discard the
+                                     * partial HIGH interval and wait again.
+                                     */
+                                    timing_counter       <= 32'd0;
+                                    waiting_for_scl_high <= 1'b1;
+                                    bit_phase            <=
+                                        PH_RELEASE_HIGH;
+
+                                end
+                                else begin
+
+                                    waiting_for_scl_high <= 1'b0;
+
+                                    /*
+                                     * Sample incoming SDA near the center
+                                     * of actual SCL HIGH.
+                                     */
+                                    if (
+                                        timing_counter ==
+                                        ((HALF_PERIOD_CYCLES / 2) - 1)
+                                    ) begin
+
+                                        rx_shift[bit_index] <= sda_in;
+
+                                    end
+
+                                    if (
+                                        timing_counter >=
+                                        (HALF_PERIOD_CYCLES - 1)
+                                    ) begin
+
+                                        timing_counter <= 32'd0;
+
+                                        /*
+                                         * Complete this data clock.
+                                         */
+                                        scl_drive_low <= 1'b1;
+                                        sda_drive_low <= 1'b0;
+
+                                        if (bit_index == 0) begin
+
+                                            /*
+                                             * Bit 0 was sampled earlier in
+                                             * this HIGH interval.
+                                             *
+                                             * rx_shift therefore contains
+                                             * the complete byte here.
+                                             */
+                                            read_data <= rx_shift;
+
+                                            bit_phase <= PH_LOW_SETUP;
+                                            state     <= ST_MASTER_NACK;
+
+                                        end
+                                        else begin
+
+                                            bit_index <= bit_index - 1'b1;
+                                            bit_phase <= PH_LOW_SETUP;
+
+                                        end
+
+                                    end
+                                    else begin
+
+                                        timing_counter <=
+                                            timing_counter + 1'b1;
+
+                                    end
+
+                                end
+
+                            end
+
+                            default: begin
+
+                                bit_phase      <= PH_LOW_SETUP;
+                                timing_counter <= 32'd0;
+
+                                scl_drive_low <= 1'b1;
+                                sda_drive_low <= 1'b0;
+
+                                waiting_for_scl_high <= 1'b0;
+
+                            end
+
+                        endcase
+
+                    end
+
+                    /*
+                     * ====================================================
+                     * MASTER FINAL NACK
+                     * ====================================================
+                     *
+                     * This controller performs one-byte reads.
+                     *
+                     * After receiving the eighth bit, the master signals
+                     * NACK by leaving SDA HIGH/released during the ninth
+                     * clock. It then generates STOP.
+                     */
+
+                    ST_MASTER_NACK: begin
+
+                        busy               <= 1'b1;
+                        transaction_active <= 1'b1;
+                        expect_bus_free    <= 1'b0;
+
+                        case (bit_phase)
+
+                            /*
+                             * Ninth-clock LOW interval.
+                             */
+                            PH_LOW_SETUP: begin
+
+                                scl_drive_low <= 1'b1;
+
+                                /*
+                                 * SDA released = master NACK.
+                                 */
+                                sda_drive_low <= 1'b0;
+
+                                waiting_for_scl_high <= 1'b0;
+
+                                if (
+                                    timing_counter >=
+                                    (HALF_PERIOD_CYCLES - 1)
+                                ) begin
+
+                                    timing_counter <= 32'd0;
+
+                                    scl_drive_low        <= 1'b0;
+                                    waiting_for_scl_high <= 1'b1;
+
+                                    bit_phase <= PH_RELEASE_HIGH;
+
+                                end
+                                else begin
+
+                                    timing_counter <=
+                                        timing_counter + 1'b1;
+
+                                end
+
+                            end
+
+                            /*
+                             * Wait for actual SCL HIGH.
+                             */
+                            PH_RELEASE_HIGH: begin
+
+                                scl_drive_low <= 1'b0;
+                                sda_drive_low <= 1'b0;
+
+                                timing_counter       <= 32'd0;
+                                waiting_for_scl_high <= 1'b1;
+
+                                if (scl_in) begin
+
+                                    waiting_for_scl_high <= 1'b0;
+                                    bit_phase            <= PH_HIGH_HOLD;
+
+                                end
+
+                            end
+
+                            /*
+                             * Hold master NACK for the full ninth HIGH.
+                             */
+                            PH_HIGH_HOLD: begin
+
+                                scl_drive_low <= 1'b0;
+                                sda_drive_low <= 1'b0;
+
+                                if (!scl_in) begin
+
+                                    timing_counter       <= 32'd0;
+                                    waiting_for_scl_high <= 1'b1;
+                                    bit_phase            <=
+                                        PH_RELEASE_HIGH;
+
+                                end
+                                else begin
+
+                                    waiting_for_scl_high <= 1'b0;
+
+                                    if (
+                                        timing_counter >=
+                                        (HALF_PERIOD_CYCLES - 1)
+                                    ) begin
+
+                                        timing_counter <= 32'd0;
+
+                                        /*
+                                         * End ninth clock with SCL LOW.
+                                         * ST_STOP will establish SDA LOW
+                                         * before creating STOP.
+                                         */
+                                        scl_drive_low <= 1'b1;
+                                        sda_drive_low <= 1'b0;
+
+                                        bit_phase <= PH_LOW_SETUP;
+                                        state     <= ST_STOP;
+
+                                    end
+                                    else begin
+
+                                        timing_counter <=
+                                            timing_counter + 1'b1;
+
+                                    end
+
+                                end
+
+                            end
+
+                            default: begin
+
+                                bit_phase      <= PH_LOW_SETUP;
+                                timing_counter <= 32'd0;
+
+                                scl_drive_low <= 1'b1;
+                                sda_drive_low <= 1'b0;
+
+                                waiting_for_scl_high <= 1'b0;
+
+                            end
+
+                        endcase
 
                     end
 
