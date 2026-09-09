@@ -689,7 +689,22 @@ module i2c_master_core #(
                                             state <= ST_READ_DATA;
 
                                         end
-                                        else begin
+                                                                                else begin
+
+                                            /*
+                                             * Address ACKed for WRITE.
+                                             *
+                                             * Prepare the one-byte payload.
+                                             */
+                                            tx_shift      <= latched_wdata;
+                                            bit_index     <= 4'd7;
+
+                                            /*
+                                             * First data bit is established
+                                             * while SCL is already LOW.
+                                             */
+                                            sda_drive_low <=
+                                                ~latched_wdata[7];
 
                                             state <= ST_WRITE_DATA;
 
@@ -735,22 +750,332 @@ module i2c_master_core #(
                      * the real data-transfer engines.
                      */
 
+                                        /*
+                     * ====================================================
+                     * WRITE DATA BYTE
+                     * ====================================================
+                     */
+
                     ST_WRITE_DATA: begin
 
-                        busy                   <= 1'b1;
-                        transaction_active     <= 1'b1;
-                        expect_bus_free        <= 1'b0;
-                        waiting_for_scl_high   <= 1'b0;
+                        busy               <= 1'b1;
+                        transaction_active <= 1'b1;
+                        expect_bus_free    <= 1'b0;
 
-                        /*
-                         * Hold a safe LOW clock while S5.4 has not yet
-                         * implemented the write-data byte.
-                         */
-                        scl_drive_low <= 1'b1;
-                        sda_drive_low <= 1'b0;
+                        case (bit_phase)
 
-                        timing_counter <= 32'd0;
-                        bit_phase      <= PH_LOW_SETUP;
+                            /*
+                             * --------------------------------------------
+                             * DATA BIT LOW INTERVAL
+                             * --------------------------------------------
+                             */
+
+                            PH_LOW_SETUP: begin
+
+                                scl_drive_low <= 1'b1;
+
+                                sda_drive_low <=
+                                    ~tx_shift[bit_index];
+
+                                waiting_for_scl_high <= 1'b0;
+
+                                if (
+                                    timing_counter >=
+                                    (HALF_PERIOD_CYCLES - 1)
+                                ) begin
+
+                                    timing_counter <= 32'd0;
+
+                                    /*
+                                     * Release SCL. Actual HIGH timing
+                                     * begins only after scl_in is HIGH.
+                                     */
+                                    scl_drive_low        <= 1'b0;
+                                    waiting_for_scl_high <= 1'b1;
+
+                                    bit_phase <= PH_RELEASE_HIGH;
+
+                                end
+                                else begin
+
+                                    timing_counter <=
+                                        timing_counter + 1'b1;
+
+                                end
+
+                            end
+
+                            /*
+                             * --------------------------------------------
+                             * CLOCK-STRETCH WAIT
+                             * --------------------------------------------
+                             */
+
+                            PH_RELEASE_HIGH: begin
+
+                                scl_drive_low <= 1'b0;
+
+                                sda_drive_low <=
+                                    ~tx_shift[bit_index];
+
+                                timing_counter       <= 32'd0;
+                                waiting_for_scl_high <= 1'b1;
+
+                                if (scl_in) begin
+
+                                    waiting_for_scl_high <= 1'b0;
+                                    bit_phase            <= PH_HIGH_HOLD;
+
+                                end
+
+                            end
+
+                            /*
+                             * --------------------------------------------
+                             * DATA BIT HIGH INTERVAL
+                             * --------------------------------------------
+                             */
+
+                            PH_HIGH_HOLD: begin
+
+                                scl_drive_low <= 1'b0;
+
+                                sda_drive_low <=
+                                    ~tx_shift[bit_index];
+
+                                if (!scl_in) begin
+
+                                    timing_counter       <= 32'd0;
+                                    waiting_for_scl_high <= 1'b1;
+                                    bit_phase            <= PH_RELEASE_HIGH;
+
+                                end
+                                else begin
+
+                                    waiting_for_scl_high <= 1'b0;
+
+                                    if (
+                                        timing_counter >=
+                                        (HALF_PERIOD_CYCLES - 1)
+                                    ) begin
+
+                                        timing_counter <= 32'd0;
+
+                                        /*
+                                         * End current bit with SCL LOW.
+                                         */
+                                        scl_drive_low <= 1'b1;
+
+                                        if (bit_index == 0) begin
+
+                                            /*
+                                             * All eight data bits sent.
+                                             *
+                                             * Release SDA for target ACK.
+                                             */
+                                            sda_drive_low <= 1'b0;
+
+                                            bit_phase <= PH_LOW_SETUP;
+                                            state     <= ST_WRITE_ACK;
+
+                                        end
+                                        else begin
+
+                                            bit_index <= bit_index - 1'b1;
+
+                                            sda_drive_low <=
+                                                ~tx_shift[
+                                                    bit_index - 1'b1
+                                                ];
+
+                                            bit_phase <= PH_LOW_SETUP;
+
+                                        end
+
+                                    end
+                                    else begin
+
+                                        timing_counter <=
+                                            timing_counter + 1'b1;
+
+                                    end
+
+                                end
+
+                            end
+
+                            default: begin
+
+                                bit_phase      <= PH_LOW_SETUP;
+                                timing_counter <= 32'd0;
+
+                                scl_drive_low <= 1'b1;
+
+                                sda_drive_low <=
+                                    ~tx_shift[bit_index];
+
+                                waiting_for_scl_high <= 1'b0;
+
+                            end
+
+                        endcase
+
+                    end
+
+                    /*
+                     * ====================================================
+                     * WRITE DATA ACK / NACK
+                     * ====================================================
+                     */
+
+                    ST_WRITE_ACK: begin
+
+                        busy               <= 1'b1;
+                        transaction_active <= 1'b1;
+                        expect_bus_free    <= 1'b0;
+
+                        case (bit_phase)
+
+                            /*
+                             * Ninth clock LOW.
+                             *
+                             * Master releases SDA for target response.
+                             */
+                            PH_LOW_SETUP: begin
+
+                                scl_drive_low <= 1'b1;
+                                sda_drive_low <= 1'b0;
+
+                                waiting_for_scl_high <= 1'b0;
+
+                                /*
+                                 * Clear before taking the data ACK sample.
+                                 */
+                                nack <= 1'b0;
+
+                                if (
+                                    timing_counter >=
+                                    (HALF_PERIOD_CYCLES - 1)
+                                ) begin
+
+                                    timing_counter <= 32'd0;
+
+                                    scl_drive_low        <= 1'b0;
+                                    waiting_for_scl_high <= 1'b1;
+
+                                    bit_phase <= PH_RELEASE_HIGH;
+
+                                end
+                                else begin
+
+                                    timing_counter <=
+                                        timing_counter + 1'b1;
+
+                                end
+
+                            end
+
+                            /*
+                             * Wait for actual SCL HIGH.
+                             */
+                            PH_RELEASE_HIGH: begin
+
+                                scl_drive_low <= 1'b0;
+                                sda_drive_low <= 1'b0;
+
+                                timing_counter       <= 32'd0;
+                                waiting_for_scl_high <= 1'b1;
+
+                                if (scl_in) begin
+
+                                    waiting_for_scl_high <= 1'b0;
+                                    bit_phase            <= PH_HIGH_HOLD;
+
+                                end
+
+                            end
+
+                            /*
+                             * Sample target ACK/NACK during actual
+                             * ninth-clock HIGH interval.
+                             */
+                            PH_HIGH_HOLD: begin
+
+                                scl_drive_low <= 1'b0;
+                                sda_drive_low <= 1'b0;
+
+                                if (!scl_in) begin
+
+                                    timing_counter       <= 32'd0;
+                                    waiting_for_scl_high <= 1'b1;
+                                    bit_phase            <= PH_RELEASE_HIGH;
+
+                                    nack <= 1'b0;
+
+                                end
+                                else begin
+
+                                    waiting_for_scl_high <= 1'b0;
+
+                                    if (
+                                        timing_counter ==
+                                        ((HALF_PERIOD_CYCLES / 2) - 1)
+                                    ) begin
+
+                                        nack <= sda_in;
+
+                                    end
+
+                                    if (
+                                        timing_counter >=
+                                        (HALF_PERIOD_CYCLES - 1)
+                                    ) begin
+
+                                        timing_counter <= 32'd0;
+
+                                        /*
+                                         * Complete ninth clock.
+                                         */
+                                        scl_drive_low <= 1'b1;
+                                        sda_drive_low <= 1'b0;
+
+                                        bit_phase <= PH_LOW_SETUP;
+
+                                        /*
+                                         * For a one-byte write, both ACK
+                                         * and NACK terminate with STOP.
+                                         *
+                                         * nack retains the sampled result.
+                                         */
+                                        state <= ST_STOP;
+
+                                    end
+                                    else begin
+
+                                        timing_counter <=
+                                            timing_counter + 1'b1;
+
+                                    end
+
+                                end
+
+                            end
+
+                            default: begin
+
+                                bit_phase      <= PH_LOW_SETUP;
+                                timing_counter <= 32'd0;
+
+                                scl_drive_low <= 1'b1;
+                                sda_drive_low <= 1'b0;
+
+                                waiting_for_scl_high <= 1'b0;
+
+                                nack <= 1'b0;
+
+                            end
+
+                        endcase
 
                     end
 
