@@ -445,7 +445,7 @@ module tb_baseline_address_ack_nack;
         );
 
         check(
-            "READ_PLACEHOLDER_HOLDS_SCL_LOW",
+            "READ_PATH_BEGINS_WITH_SCL_LOW",
             scl_drive_low == 1'b1
         );
 
