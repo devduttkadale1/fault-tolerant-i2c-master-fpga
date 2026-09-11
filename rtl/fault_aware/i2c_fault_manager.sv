@@ -347,12 +347,61 @@ module i2c_fault_manager #(
                      */
                     if (f2_detect_pulse) begin
 
-                        /*
-                         * S6.3D.
-                         */
+    /*
+     * ========================================================
+     * F2 DETECTION
+     * ========================================================
+     *
+     * Capture whether this fault terminated an active normal
+     * transaction before fault_abort clears the common core's
+     * transaction state.
+     */
+    f2_aborted_active_transaction <=
+        core_transaction_active;
 
-                    end
-                    else if (f1_detect_pulse) begin
+    fault_active <= 1'b1;
+    fault_code   <= FAULT_SCL_STALL;
+
+    recovery_failed <= 1'b0;
+
+    /*
+     * No new command may be accepted once F2 has been
+     * classified.
+     */
+    block_cmd_ready <= 1'b1;
+
+    /*
+     * Preserve externally visible busy semantics if an active
+     * transaction is being terminated.
+     */
+    fault_busy_hold <=
+        core_transaction_active;
+
+    /*
+     * Immediately take ownership and release both open-drain
+     * outputs. F2 containment never generates recovery clocks
+     * and never attempts to force SCL HIGH.
+     */
+    recovery_owns_bus      <= 1'b1;
+    recovery_sda_drive_low <= 1'b0;
+    recovery_scl_drive_low <= 1'b0;
+
+    /*
+     * Abort the common core for exactly one cycle.
+     *
+     * Because fault_abort is registered, the common core sees
+     * this pulse on the following active clock edge. Recovery
+     * ownership already prevents any normal bus drive from
+     * escaping in the meantime.
+     */
+    fault_abort <= 1'b1;
+
+    recovery_tbuf_counter <= 32'd0;
+
+    state <= F2_DETECTED;
+
+end
+else if (f1_detect_pulse) begin
 
                         fault_active <= 1'b1;
                         fault_code   <= FAULT_SDA_STUCK;
@@ -824,20 +873,246 @@ module i2c_fault_manager #(
                  *
                  * They are not reachable from the S6.3B F1 unit path.
                  */
-                F2_DETECTED,
-                F2_RELEASE_BUS,
-                F2_WAIT_SCL_RELEASE,
-                F2_WAIT_BUS_FREE,
-                F2_WAIT_TBUF,
-                F2_SUCCESS: begin
+                /*
+ * ============================================================
+ * F2 DETECTED
+ * ============================================================
+ *
+ * F2 has already been classified and the common-core abort
+ * pulse has already been launched from RM_IDLE.
+ */
+F2_DETECTED: begin
 
-                    block_cmd_ready <= 1'b1;
+    block_cmd_ready <= 1'b1;
 
-                    recovery_owns_bus      <= 1'b1;
-                    recovery_sda_drive_low <= 1'b0;
-                    recovery_scl_drive_low <= 1'b0;
+    fault_busy_hold <=
+        f2_aborted_active_transaction;
 
-                end
+    recovery_owns_bus      <= 1'b1;
+    recovery_sda_drive_low <= 1'b0;
+    recovery_scl_drive_low <= 1'b0;
+
+    fault_active <= 1'b1;
+    fault_code   <= FAULT_SCL_STALL;
+
+    recovery_active <= 1'b0;
+    recovery_failed <= 1'b0;
+
+    recovery_tbuf_counter <= 32'd0;
+
+    state <= F2_RELEASE_BUS;
+
+end
+
+
+/*
+ * ============================================================
+ * F2 RELEASE BUS
+ * ============================================================
+ *
+ * Both controller outputs remain electrically released.
+ * There is no SCL-forcing recovery operation.
+ */
+F2_RELEASE_BUS: begin
+
+    block_cmd_ready <= 1'b1;
+
+    fault_busy_hold <=
+        f2_aborted_active_transaction;
+
+    recovery_owns_bus      <= 1'b1;
+    recovery_sda_drive_low <= 1'b0;
+    recovery_scl_drive_low <= 1'b0;
+
+    fault_active <= 1'b1;
+    fault_code   <= FAULT_SCL_STALL;
+
+    recovery_active <= 1'b1;
+    recovery_failed <= 1'b0;
+
+    recovery_tbuf_counter <= 32'd0;
+
+    state <= F2_WAIT_SCL_RELEASE;
+
+end
+
+
+/*
+ * ============================================================
+ * F2 WAIT FOR EXTERNAL SCL RELEASE
+ * ============================================================
+ *
+ * If another device continues holding SCL LOW, containment
+ * remains here indefinitely.
+ *
+ * The controller must never actively force SCL HIGH.
+ */
+F2_WAIT_SCL_RELEASE: begin
+
+    block_cmd_ready <= 1'b1;
+
+    fault_busy_hold <=
+        f2_aborted_active_transaction;
+
+    recovery_owns_bus      <= 1'b1;
+    recovery_sda_drive_low <= 1'b0;
+    recovery_scl_drive_low <= 1'b0;
+
+    fault_active <= 1'b1;
+    fault_code   <= FAULT_SCL_STALL;
+
+    recovery_active <= 1'b1;
+    recovery_failed <= 1'b0;
+
+    recovery_tbuf_counter <= 32'd0;
+
+    if (scl_in) begin
+
+        state <= F2_WAIT_BUS_FREE;
+
+    end
+
+end
+
+
+/*
+ * ============================================================
+ * F2 WAIT FOR COMPLETE BUS FREE
+ * ============================================================
+ *
+ * Both physical bus lines must be observed HIGH before tBUF
+ * qualification begins.
+ */
+F2_WAIT_BUS_FREE: begin
+
+    block_cmd_ready <= 1'b1;
+
+    fault_busy_hold <=
+        f2_aborted_active_transaction;
+
+    recovery_owns_bus      <= 1'b1;
+    recovery_sda_drive_low <= 1'b0;
+    recovery_scl_drive_low <= 1'b0;
+
+    fault_active <= 1'b1;
+    fault_code   <= FAULT_SCL_STALL;
+
+    recovery_active <= 1'b1;
+    recovery_failed <= 1'b0;
+
+    recovery_tbuf_counter <= 32'd0;
+
+    if (scl_in && sda_in) begin
+
+        state <= F2_WAIT_TBUF;
+
+    end
+
+end
+
+
+/*
+ * ============================================================
+ * F2 CONTINUOUS tBUF
+ * ============================================================
+ */
+F2_WAIT_TBUF: begin
+
+    block_cmd_ready <= 1'b1;
+
+    fault_busy_hold <=
+        f2_aborted_active_transaction;
+
+    recovery_owns_bus      <= 1'b1;
+    recovery_sda_drive_low <= 1'b0;
+    recovery_scl_drive_low <= 1'b0;
+
+    fault_active <= 1'b1;
+    fault_code   <= FAULT_SCL_STALL;
+
+    recovery_active <= 1'b1;
+    recovery_failed <= 1'b0;
+
+    /*
+     * Any renewed LOW level destroys the current continuous
+     * bus-free qualification.
+     */
+    if (!(scl_in && sda_in)) begin
+
+        recovery_tbuf_counter <= 32'd0;
+
+        state <= F2_WAIT_BUS_FREE;
+
+    end
+    else if (
+        recovery_tbuf_counter >=
+        (T_BUF_CYCLES - 1)
+    ) begin
+
+        recovery_tbuf_counter <= 32'd0;
+
+        state <= F2_SUCCESS;
+
+    end
+    else begin
+
+        recovery_tbuf_counter <=
+            recovery_tbuf_counter + 1'b1;
+
+    end
+
+end
+
+
+/*
+ * ============================================================
+ * F2 SUCCESS
+ * ============================================================
+ *
+ * Containment is complete. The original transaction is never
+ * automatically retried.
+ */
+F2_SUCCESS: begin
+
+    recovery_sda_drive_low <= 1'b0;
+    recovery_scl_drive_low <= 1'b0;
+
+    recovery_active <= 1'b0;
+    recovery_failed <= 1'b0;
+
+    /*
+     * Successful historical F2 status remains visible until the
+     * next command is actually accepted.
+     */
+    fault_active <= 1'b1;
+    fault_code   <= FAULT_SCL_STALL;
+
+    /*
+     * Return normal bus ownership and command service.
+     */
+    recovery_owns_bus <= 1'b0;
+    block_cmd_ready   <= 1'b0;
+
+    /*
+     * Frozen active-transaction policy:
+     *
+     *     containment complete:
+     *         busy = 0
+     *         done = 1 for one system-clock cycle
+     *
+     * If there was no active transaction, no completion pulse is
+     * invented.
+     */
+    fault_busy_hold <= 1'b0;
+
+    fault_done_pulse <=
+        f2_aborted_active_transaction;
+
+    f2_aborted_active_transaction <= 1'b0;
+
+    state <= RM_IDLE;
+
+end
 
 
                 /*
