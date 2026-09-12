@@ -585,13 +585,74 @@ else if (f1_detect_pulse) begin
                     recovery_active <= 1'b1;
 
                     /*
-                     * S6.3E will give f2_detect_pulse priority here
-                     * and sequentially reclassify F1 as F2.
+                     * ========================================================
+                     * F1 -> F2 PREEMPTION
+                     * ========================================================
                      *
-                     * Until that stage this branch intentionally
-                     * continues only the F1 unit implementation.
+                     * While F1 recovery has released SCL and is waiting for
+                     * the physical line to become HIGH, prolonged external
+                     * SCL LOW is reclassified as F2.
+                     *
+                     * This is sequential reclassification:
+                     *
+                     *     FAULT_SDA_STUCK -> FAULT_SCL_STALL
+                     *
+                     * There is never more than one active fault code.
                      */
-                    if (!scl_in) begin
+                    if (f2_detect_pulse) begin
+
+                        /*
+                         * Abandon the current F1 recovery-clock sequence.
+                         */
+                        recovery_timing_counter <= 32'd0;
+                        recovery_tbuf_counter   <= 32'd0;
+                        recovery_phase_started  <= 1'b0;
+                        recovery_sda_sample     <= 1'b0;
+
+                        /*
+                         * Replace the visible F1 classification with F2.
+                         */
+                        fault_active <= 1'b1;
+                        fault_code   <= FAULT_SCL_STALL;
+
+                        recovery_failed <= 1'b0;
+
+                        /*
+                         * This F2 arose from autonomous F1 recovery rather
+                         * than from an active normal command. The common core
+                         * was already aborted when F1 handling began.
+                         *
+                         * Therefore this transition must not create synthetic
+                         * command busy/done semantics.
+                         */
+                        f2_aborted_active_transaction <= 1'b0;
+                        fault_busy_hold               <= 1'b0;
+
+                        /*
+                         * Keep commands blocked and retain recovery ownership.
+                         *
+                         * Both open-drain outputs are released. In particular,
+                         * SCL is never actively forced HIGH.
+                         */
+                        block_cmd_ready <= 1'b1;
+
+                        recovery_owns_bus      <= 1'b1;
+                        recovery_sda_drive_low <= 1'b0;
+                        recovery_scl_drive_low <= 1'b0;
+
+                        recovery_active <= 1'b1;
+
+                        /*
+                         * Enter the already-verified F2 containment sequence.
+                         *
+                         * We enter at F2_RELEASE_BUS rather than F2_DETECTED
+                         * so recovery_active remains continuously asserted
+                         * across the F1 -> F2 handoff.
+                         */
+                        state <= F2_RELEASE_BUS;
+
+                    end
+                    else if (!scl_in) begin
 
                 /*
                 * Physical SCL is not HIGH, so none of this interval may count
