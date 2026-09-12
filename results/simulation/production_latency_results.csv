@@ -1,0 +1,3 @@
+test_id,design,result,fault_code,sys_clk_hz,i2c_clk_hz,threshold_cycles,fault_onset_cycle,detect_cycle,detection_latency_cycles,detection_latency_ns,manager_response_cycle,manager_response_cycles,manager_response_ns,git_commit,vivado_version,simulator
+F1_PRODUCTION_THRESHOLD,fault_aware,PASS,1,100000000,100000,10000,3,10002,9999,99990,10003,10000,100000,3f76326c444a33754ce19d71b39443cffac77346,2024.1,XSIM
+F2_PRODUCTION_THRESHOLD,fault_aware,PASS,2,100000000,100000,100000,3,100002,99999,999990,100003,100000,1000000,3f76326c444a33754ce19d71b39443cffac77346,2024.1,XSIM

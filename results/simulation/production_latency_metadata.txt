@@ -1,0 +1,17 @@
+source_checkpoint_commit=3f76326c444a33754ce19d71b39443cffac77346
+vivado_version=2024.1
+simulator=XSIM
+sys_clk_hz=100000000
+nominal_i2c_clk_hz=100000
+sda_stuck_limit_cycles=10000
+scl_stall_limit_cycles=100000
+f1_detection_latency_cycles=9999
+f1_detection_latency_ns=99990
+f1_manager_response_cycles=10000
+f1_manager_response_ns=100000
+f2_detection_latency_cycles=99999
+f2_detection_latency_ns=999990
+f2_manager_response_cycles=100000
+f2_manager_response_ns=1000000
+latency_convention=first qualifying sample is sample 1; detection occurs on sample LIMIT; elapsed detector latency is LIMIT-1 system-clock cycles
+threshold_note=F1 and F2 timeout values are project policy parameters, not I2C specification maximum timeout requirements

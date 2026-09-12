@@ -1,0 +1,9 @@
+git_commit=3f76326c444a33754ce19d71b39443cffac77346
+vivado_version=2024.1
+simulator=XSIM
+metrics_sys_clk_hz=10000000
+metrics_i2c_clk_hz=1000000
+metrics_sda_stuck_limit_cycles=3
+metrics_scl_stall_limit_cycles=5
+test_count=6
+csv_data_rows=17
