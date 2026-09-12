@@ -450,6 +450,7 @@ CSV_HEADER
 
 grep '^S7CSVROW,' \
 "${METRICS_LOG}" |
+tr -d '\r' |
 sed 's/^S7CSVROW,//' |
 sed "s/GIT_COMMIT/${GIT_COMMIT}/g" \
 >> "${CSV_OUT}"
