@@ -1,0 +1,156 @@
+S8.7 FINAL MATCHED FPGA PPA COMPARISON
+======================================
+
+Scope
+-----
+This comparison evaluates two implementations of the same FPGA-based
+I2C-master project:
+
+  Design A: baseline I2C master
+  Design B: fault-aware I2C master with F1/F2 detection and recovery
+
+Both implementations use the same:
+
+  Vivado version    : 2024.1
+  FPGA target       : Xilinx Artix-7 XC7A35T-1CPG236C
+  Vivado part       : xc7a35tcpg236-1
+  clock constraint  : 10.000 ns / 100 MHz
+  synthesis flow
+  optimization flow
+  placement flow
+  routing flow
+  timing-report methodology
+  vectorless power-report methodology
+
+No physical FPGA board was available.
+Therefore this stage is implementation-based FPGA analysis rather than
+physical-board validation.
+
+Matched PPA results
+-------------------
+
+Metric                         Baseline       Fault-aware       Change
+---------------------------------------------------------------------------
+Post-synth LUTs                87             223               +136 (+156.32%)
+Post-route LUTs                86             219               +133 (+154.65%)
+Post-route FFs                 66             144               +78  (+118.18%)
+
+LUTRAM                         0              0                 unchanged
+SRL                            0              0                 unchanged
+RAMB36                         0              0                 unchanged
+RAMB18                         0              0                 unchanged
+DSP                            0              0                 unchanged
+BUFG                           1              1                 unchanged
+
+Post-route WNS                 +5.132 ns      +4.703 ns         -0.429 ns
+Post-route TNS                  0.000 ns       0.000 ns          unchanged
+Failing setup endpoints         0              0                 unchanged
+Routing errors                  0              0                 unchanged
+
+Inferred critical-path delay    4.868 ns       5.297 ns          +0.429 ns
+
+Indicative implementation Fmax 205.42 MHz     188.79 MHz        -8.10%
+
+Vectorless total power          0.072 W        0.075 W           +0.003 W (+4.17%)
+Vectorless dynamic power        0.002 W        0.005 W           +0.003 W
+Vectorless device static        0.070 W        0.070 W           unchanged
+Power confidence                Low            Low               unchanged
+
+Area interpretation
+-------------------
+The fault-tolerant logic introduces substantial logic-resource overhead.
+
+Relative to the matched baseline implementation:
+
+  post-route LUT count increases by 154.65%
+  post-route FF count increases by 118.18%
+
+The increase is attributable to the added fault detector, recovery FSM,
+fault-state bookkeeping, threshold counters, and containment/recovery
+control required for F1/F2 fault handling.
+
+No additional LUTRAM, BRAM, DSP, SRL, or BUFG resources are required.
+
+Timing interpretation
+---------------------
+Both implementations meet the required 100 MHz / 10.000 ns clock
+constraint with zero setup timing violations.
+
+Baseline WNS:
+  +5.132 ns
+
+Fault-aware WNS:
+  +4.703 ns
+
+The fault-aware design therefore reduces timing margin by 0.429 ns but
+still retains substantial positive slack at the target 100 MHz clock.
+
+Using:
+
+  Fmax = 1 / (10.000 ns - WNS)
+
+the implementation-derived indicative Fmax values are:
+
+  baseline    : 205.42 MHz
+  fault-aware : 188.79 MHz
+
+This corresponds to an indicative reduction of 8.10%.
+
+These Fmax values are derived implementation estimates only.
+They are not measured FPGA operating frequencies and must not be
+reported as physical hardware validation.
+
+Power interpretation
+--------------------
+Vivado post-route vectorless power estimate:
+
+  baseline    : 0.072 W
+  fault-aware : 0.075 W
+
+Using the rounded values reported by Vivado, the total estimate rises
+by 0.003 W, or 4.17%.
+
+The dynamic estimate changes from 0.002 W to 0.005 W, while the
+reported device-static estimate remains 0.070 W.
+
+Both power reports have Low confidence.
+
+Therefore these values must be described as:
+
+  "Vivado post-route vectorless power estimates"
+
+and not as measured hardware power.
+
+The percentage change in dynamic power should not be emphasized in
+isolation because the absolute values are small, rounded to milliwatt
+resolution, and reported with Low confidence.
+
+Engineering conclusion
+----------------------
+The matched implementation study demonstrates a clear area/timing/power
+tradeoff for the added F1/F2 fault-tolerance mechanisms.
+
+The fault-aware implementation:
+
+  * requires substantially more LUT and FF resources;
+  * remains fully routable with zero routing errors;
+  * meets the required 100 MHz timing constraint with positive slack;
+  * has an implementation-derived indicative Fmax below the baseline
+    but well above the 100 MHz target;
+  * increases the Vivado post-route vectorless total-power estimate
+    only modestly in absolute terms;
+  * requires no BRAM, DSP, LUTRAM, SRL, or additional BUFG resources.
+
+Because no physical FPGA board was available, these conclusions are
+limited to simulation and Vivado implementation evidence and do not
+constitute hardware validation.
+
+S8 FINAL RESULT
+---------------
+S8.3 Baseline implementation      : PASS
+S8.4 Fault-aware implementation   : PASS
+S8.5 Vectorless power comparison  : PASS
+S8.6 Metric extraction            : PASS
+S8.7 Final matched PPA comparison : PASS
+
+STAGE S8 RESULT: PASS
