@@ -388,6 +388,14 @@ Manual waveform inspection alone will not be treated as sufficient evidence for 
 
 ---
 
+## Final Reproducibility Package
+
+The consolidated reproducibility manifest is available at:
+
+`docs/reproducibility/final_reproducibility_package.md`
+
+It records the exact regression entry points, production-versus-accelerated fault settings, preserved S7 evidence, matched S8 FPGA conditions/results, evidence revision checkpoints, and interpretation boundaries.
+
 ## Repository Structure
 
 ~~~text
