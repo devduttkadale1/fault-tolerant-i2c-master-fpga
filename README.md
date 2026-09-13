@@ -2,7 +2,7 @@
 
 Research-oriented RTL, verification, and FPGA evaluation of an I2C master controller with hardware support for selected abnormal bus conditions.
 
-> **Project status:** RTL verification and matched FPGA implementation analysis are complete through Stage S8; final documentation and reproducibility closure (S9) is in progress.
+> **Project status:** RTL verification, matched FPGA implementation analysis, final documentation, reproducibility packaging, and repository closure are complete through Stage S9.
 > **Frozen research scope:** Fault-aware extension of a conventional FPGA I2C master for F1 (SDA stuck LOW) and F2 (implementation-defined prolonged SCL LOW).
 > **Validation boundary:** Simulation and Vivado implementation evidence only; no physical FPGA board was available.
 
