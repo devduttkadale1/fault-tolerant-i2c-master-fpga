@@ -396,6 +396,12 @@ The consolidated reproducibility manifest is available at:
 
 It records the exact regression entry points, production-versus-accelerated fault settings, preserved S7 evidence, matched S8 FPGA conditions/results, evidence revision checkpoints, and interpretation boundaries.
 
+## Final Results and Limitations
+
+The paper-ready final quantitative results, engineering interpretation, and explicit claim limitations are summarized in:
+
+`docs/results/final_results_and_limitations.md`
+
 ## Repository Structure
 
 ~~~text
