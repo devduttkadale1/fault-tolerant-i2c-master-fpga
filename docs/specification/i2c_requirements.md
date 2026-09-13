@@ -139,35 +139,51 @@ Important timing parameters include:
 - **tSU;STO** — STOP setup time
 - **tBUF** — Bus free time between STOP and START
 
-The initial implementation should target the selected I2C speed mode and verify timing through simulation and FPGA implementation analysis.
+The implemented project target is I2C Standard-mode at a nominal 100 kHz, with protocol timing evaluated through simulation and matched FPGA implementation analysis.
 
 ---
 
-## 14. Fault-Relevant Behavior
+## 14. Frozen Fault-Relevant Behavior
 
-The fault-tolerant controller will consider abnormal conditions such as:
+The final implemented fault model contains exactly two primary abnormal
+bus conditions:
 
-- SDA stuck LOW
-- SCL stuck LOW
-- Repeated unsuccessful ACK/NACK outcome (candidate implementation-policy condition)
-- Prolonged SCL LOW beyond an implementation-defined threshold
-- Unexpected SDA/SCL bus state
-- Incomplete transaction
-- Reset during an active transaction
-- Arbitration loss as legal multi-controller behavior, not a primary fault candidate
+- **F1 — SDA stuck LOW**
+- **F2 — prolonged SCL LOW beyond an implementation-defined
+  loss-of-progress threshold**
 
-The intended fault-handling flow is:
+The production project parameters are:
 
-`Fault → Detection → Classification → Recovery → Verification → Status`
+```text
+SYS_CLK_HZ                = 100,000,000
+I2C_CLK_HZ                = 100,000
+SDA_STUCK_LIMIT_CYCLES    = 10,000
+SCL_STALL_LIMIT_CYCLES    = 100,000
+```
 
-Important research measurements will include:
+At 100 MHz, the manager-response thresholds correspond to:
 
-- Fault detection latency
-- Recovery latency
-- Recovery success rate
-- False-positive rate
-- FPGA resource overhead
-- Timing impact
-- Power impact
+```text
+F1 = 10,000 cycles = 100 us
+F2 = 100,000 cycles = 1 ms
+```
 
-The final fault model and recovery mechanism will be frozen only after A+B+D synthesis, authoritative specification verification, and S2-S4 design/verification validation.
+These timeout values are project reliability-policy parameters and are
+not maximum timeout values mandated by the base I2C specification.
+
+The frozen fault-handling flow is:
+
+`Fault → Detection → Classification → Recovery/Containment → Status`
+
+F1 uses controlled nine-clock bus-clear recovery. F2 represents
+implementation-defined loss of progress and releases controller ownership
+while the external SCL-LOW condition persists.
+
+Repeated ACK/NACK outcomes are not implemented as a third fault class.
+NACK remains legal protocol behavior. Multi-controller arbitration,
+reset-during-transaction policy, and additional unrelated fault classes
+are outside the frozen primary F1/F2 experiment.
+
+The final F1/F2 model, recovery policy, architecture, and verification
+methodology were frozen before the completed RTL verification and matched
+FPGA implementation study.

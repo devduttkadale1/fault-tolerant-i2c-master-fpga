@@ -170,7 +170,7 @@ The fault thresholds are project implementation parameters.
 
 They are not mandatory timeout values defined by base I2C.
 
-The initial primary experimental configuration is:
+The frozen production configuration is:
 
 ```text
 SYS_CLK_HZ                = 100,000,000
@@ -192,11 +192,11 @@ The F2 threshold is intentionally longer than the F1 persistence threshold
 so that the controller tolerates substantial legal clock stretching before
 classifying loss of progress.
 
-These values are project experimental defaults and must not be described as
-I2C specification requirements.
+These values are frozen production project-policy parameters and must not be
+described as I2C specification requirements.
 
-The RTL must remain parameterized so alternative thresholds can later be
-tested without redesign.
+The RTL remains parameterized so controlled verification configurations
+can use alternative thresholds without redesigning the production logic.
 
 ---
 
@@ -623,7 +623,7 @@ Recommended format:
 or:
 
 ```text
-[FAIL] F2_03_THRESHOLD_EXACT : expected FAULT_SCL_STALL
+[FAIL] EXAMPLE_TEST : expected condition was not observed
 ```
 
 At regression completion:
@@ -742,7 +742,7 @@ transaction terminates cleanly
 
 The target holds SCL LOW after the controller releases SCL.
 
-The stretch duration must be clearly below the future F2 threshold.
+The stretch duration must be clearly below the configured F2 threshold.
 
 Verify:
 
@@ -1811,30 +1811,40 @@ They do not replace them.
 
 # 42. Automated Regression
 
-The verification environment should eventually support execution through
-Vivado Tcl or XSIM batch scripts.
+The completed verification environment uses automated Vivado/XSIM batch
+regression scripts.
 
-Proposed scripts:
+Primary regression entry points are:
 
 ```text
-scripts/run_baseline_sim.tcl
-scripts/run_fault_aware_sim.tcl
-scripts/run_regression.tcl
+scripts/run_baseline_regression.sh
+scripts/run_fault_aware_regression.sh
+scripts/generate_fault_coverage_summary.sh
 ```
 
-The scripts should:
+The automated flow compiles and elaborates the required SystemVerilog,
+runs the selected XSIM testbenches, checks explicit PASS/FAIL evidence,
+preserves logs and machine-readable results, and records reproducibility
+metadata.
 
-1. compile the required SystemVerilog files;
-2. elaborate the selected testbench;
-3. run simulation;
-4. return a non-zero failure status when a test fails where practical;
-5. preserve simulation logs;
-6. preserve result CSV files;
-7. preserve relevant waveforms for failed tests;
-8. print a concise summary.
+Final fault-aware quantitative evidence is preserved under:
 
-The exact Vivado commands will be generated after the RTL/testbench file
-structure exists.
+```text
+results/simulation/regression_results.csv
+results/simulation/coverage_summary.csv
+results/simulation/fault_aware_regression/run_metadata.txt
+```
+
+Production-threshold latency evidence is preserved separately under:
+
+```text
+results/simulation/production_latency_metadata.txt
+results/simulation/production_latency_results.csv
+```
+
+The final quantitative fault-aware regression contains 17/17 passing
+regression rows, while the required fault-scenario coverage summary closes
+28/28 coverage points.
 
 ---
 
@@ -1942,8 +1952,9 @@ seed where applicable
 result
 ```
 
-The project should be runnable from a clean repository checkout using
-documented commands.
+The project is structured for reproducible execution from a clean
+repository checkout using the documented regression and matched-flow
+commands.
 
 ---
 
@@ -1958,8 +1969,9 @@ implementation result
 hardware-board result
 ```
 
-Because no physical FPGA board is currently available, simulation success
-must not be described as physical hardware validation.
+Because no physical FPGA board was available for this project, simulation
+and Vivado implementation success must not be described as physical
+hardware validation.
 
 Likewise:
 
@@ -1978,32 +1990,32 @@ S4 passes when the verification methodology is frozen and all of the
 following are defined:
 
 ```text
-[ ] Testbench architecture defined.
-[ ] Open-drain bus model defined.
-[ ] Host sequencer defined.
-[ ] Target model behavior defined.
-[ ] Fault injector behavior defined.
-[ ] Bus monitor responsibility defined.
-[ ] Scoreboard responsibility defined.
-[ ] Baseline test matrix defined.
-[ ] Fault-aware normal tests defined.
-[ ] F1 threshold tests defined.
-[ ] F1 recovery tests defined.
-[ ] F1 failure test defined.
-[ ] F1 false-positive tests defined.
-[ ] F2 threshold tests defined.
-[ ] F2 containment tests defined.
-[ ] F2 false-positive tests defined.
-[ ] F1-to-F2 interaction test defined.
-[ ] Post-recovery tests defined.
-[ ] Assertions/checkers defined.
-[ ] Coverage model defined.
-[ ] Detection-latency definitions frozen.
-[ ] Recovery-latency definitions frozen.
-[ ] Machine-readable result format defined.
-[ ] Automated regression strategy defined.
-[ ] Simulation watchdog policy defined.
-[ ] Reproducibility requirements defined.
+[x] Testbench architecture defined.
+[x] Open-drain bus model defined.
+[x] Host sequencer defined.
+[x] Target model behavior defined.
+[x] Fault injector behavior defined.
+[x] Bus monitor responsibility defined.
+[x] Scoreboard responsibility defined.
+[x] Baseline test matrix defined.
+[x] Fault-aware normal tests defined.
+[x] F1 threshold tests defined.
+[x] F1 recovery tests defined.
+[x] F1 failure test defined.
+[x] F1 false-positive tests defined.
+[x] F2 threshold tests defined.
+[x] F2 containment tests defined.
+[x] F2 false-positive tests defined.
+[x] F1-to-F2 interaction test defined.
+[x] Post-recovery tests defined.
+[x] Assertions/checkers defined.
+[x] Coverage model defined.
+[x] Detection-latency definitions frozen.
+[x] Recovery-latency definitions frozen.
+[x] Machine-readable result format defined.
+[x] Automated regression strategy defined.
+[x] Simulation watchdog policy defined.
+[x] Reproducibility requirements defined.
 ```
 
 ---

@@ -129,11 +129,13 @@ to clear the bus.
 ### Project implication
 
 Autonomous SDA-stuck detection followed by controlled nine-clock
-bus-clear generation is a specification-grounded candidate recovery
-mechanism.
+bus-clear generation is the implemented F1 recovery mechanism.
 
-The precise detection condition, activation policy, recovery-complete
-criterion, and FPGA implementation remain to be defined later.
+The final project uses `SDA_STUCK_LIMIT_CYCLES = 10,000` at a 100 MHz
+system clock. The detector and manager behavior are verified separately,
+and the F1 recovery sequence generates exactly nine SCL clocks unless F2
+preempts the recovery while an SCL-LOW loss-of-progress condition is
+present.
 
 ---
 
@@ -183,8 +185,8 @@ Recovery logic must preserve these protocol-state rules.
 
 ## 6. Standard-Mode Timing Requirements
 
-The initial FPGA implementation target is Standard-mode I2C unless a
-later design decision explicitly expands the supported speed modes.
+The final FPGA implementation target is Standard-mode I2C with a
+nominal 100 kHz SCL rate. Faster I2C modes are outside the frozen scope.
 
 Authoritative Standard-mode timing limits relevant to the controller
 include:
@@ -225,65 +227,63 @@ satisfied.
 | Retry count after NACK | Project implementation policy | Base I2C does not define our retry limit |
 | Clock stretching | Specification-permitted optional behavior | Target may hold SCL LOW |
 | Maximum I2C clock-stretch duration | Not specified by base I2C | No base-I2C timeout limit |
-| Prolonged-SCL timeout threshold | Project implementation policy | Must be configurable/justified if implemented |
+| Prolonged-SCL timeout threshold | Project implementation policy | Frozen production value = 100,000 system-clock cycles (1 ms at 100 MHz); not a base-I2C maximum |
 | Arbitration loss | Legal protocol behavior | Required handling in multi-controller operation |
 | SDA stuck LOW bus clear | Specification recommendation | Controller should generate nine clock pulses |
 | SCL stuck LOW recovery | Specification recommendation | Prefer HW reset; otherwise power cycle affected devices |
-| Detection latency target | Project implementation/experimental policy | Must be defined and measured |
-| Recovery latency target | Project implementation/experimental policy | Must be defined and measured |
+| Detection latency target | Project implementation/experimental policy | Defined and measured in the final verification evidence |
+| Recovery latency target | Project implementation/experimental policy | Defined by the verification methodology and reported where applicable |
 
 ---
 
-## 8. Candidate Research Implications
+## 8. Frozen Project Implications
 
-Specification verification materially changes the interpretation of
-the candidate fault set.
+Specification verification established the boundaries used by the final
+implementation.
 
-### Candidate F1 — SDA stuck LOW
+### F1 — SDA stuck LOW
 
-This remains a strong candidate.
+F1 is part of the frozen fault model.
 
-The specification provides a recovery recommendation involving nine
-clock pulses, making autonomous hardware detection and bus-clear
-control a specification-grounded candidate extension.
+The implementation uses persistent SDA LOW as the qualifying abnormal
+condition and applies controlled nine-clock bus-clear recovery.
 
-Still to define later:
+Production policy:
 
-- when the controller decides SDA is genuinely stuck;
-- whether detection is allowed only when the bus is expected to be
-  free;
-- recovery-success criterion;
-- failure/escalation behavior;
-- detection latency;
-- recovery latency.
+```text
+SDA_STUCK_LIMIT_CYCLES = 10,000
+```
 
-### Candidate F2 — prolonged SCL LOW
+At a 100 MHz system clock, the manager response occurs at 100 us.
+The threshold is a project policy parameter; the nine-clock bus-clear
+behavior is specification-grounded.
 
-This remains a candidate but must be described carefully.
+### F2 — prolonged SCL LOW
 
-Base I2C permits clock stretching and does not define a maximum
-stretch duration.
+F2 is part of the frozen fault model but must remain explicitly
+distinguished from legal clock stretching.
 
-Therefore any timeout threshold implemented by this project is an
-implementation-defined reliability policy rather than an I2C
-protocol requirement.
+Base I2C permits clock stretching and does not define a maximum stretch
+duration. Therefore the project uses an implementation-defined
+loss-of-progress threshold:
 
-A useful experiment may evaluate the ability to detect loss of bus
-progress without falsely classifying legitimate clock stretching.
+```text
+SCL_STALL_LIMIT_CYCLES = 100,000
+```
 
-### Candidate F3 — repeated unsuccessful ACK/NACK outcome
+At a 100 MHz system clock, the manager response occurs at 1 ms.
 
-This remains a weaker candidate.
+The threshold is a project reliability policy, not an I2C specification
+timeout. Verification therefore includes below-limit/legal SCL-LOW cases
+to prevent false classification.
 
-NACK itself is legal protocol behavior.
+### Conditions not included as F3
 
-A future fault-management policy could instead concern repeated
-unsuccessful transactions, configurable retry exhaustion, abort, and
-status reporting.
+Repeated unsuccessful ACK/NACK outcomes are not implemented as a third
+fault class.
 
-This policy would be project-specific.
-
----
+NACK itself is legal protocol behavior. Retry exhaustion and related
+transaction-policy mechanisms remain outside the frozen F1/F2 scope.
 
 ## 9. Specification Verification Conclusion
 
@@ -292,7 +292,7 @@ boundaries:
 
 1. Legal clock stretching must not automatically be treated as a
    fault.
-2. A prolonged-SCL timeout would be project-specific policy.
+2. The implemented prolonged-SCL timeout threshold is project-specific policy.
 3. NACK must not automatically be treated as a hardware fault.
 4. Arbitration loss is legal multi-controller protocol behavior.
 5. SDA-stuck-LOW recovery has an explicit nine-clock bus-clear
@@ -302,8 +302,9 @@ boundaries:
 7. START, STOP, repeated START, bus-free behavior, and Standard-mode
    timing impose constraints that the RTL must respect.
 
-The final project fault set and research gap remain unfrozen.
+The final primary fault set is frozen to F1 (SDA stuck LOW) and F2
+(implementation-defined prolonged SCL LOW).
 
-The next stage will use the A+B+D synthesis together with this
-specification-verification record to provisionally select the focused
-research scope and working research questions.
+The completed architecture, RTL verification, quantitative fault
+regression, production-threshold latency study, and matched FPGA
+implementation analysis all use this frozen F1/F2 scope.
