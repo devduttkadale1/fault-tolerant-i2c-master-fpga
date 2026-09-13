@@ -1,0 +1,33 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2024.1 (win64) Build 5076996 Wed May 22 18:37:14 MDT 2024
+| Date         : Sun Sep 13 20:58:11 2026
+| Host         : DEVDUTT running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file D:/fault_tolerant_i2c_s8_d18a806/results/synthesis/fault_aware/fault_aware_post_synth_utilization.rpt
+| Design       : i2c_master_fault_aware
+| Device       : xc7a35tcpg236-1
+| Speed File   : -1
+| Design State : Synthesized
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++----------------------------+--------------------+------------+------------+---------+------+-----+--------+--------+------------+
+|          Instance          |       Module       | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
++----------------------------+--------------------+------------+------------+---------+------+-----+--------+--------+------------+
+| i2c_master_fault_aware     |              (top) |        223 |        223 |       0 |    0 | 144 |      0 |      0 |          0 |
+|   (i2c_master_fault_aware) |              (top) |          0 |          0 |       0 |    0 |   0 |      0 |      0 |          0 |
+|   u_core                   |    i2c_master_core |        107 |        107 |       0 |    0 |  68 |      0 |      0 |          0 |
+|   u_fault_manager          |  i2c_fault_manager |        116 |        116 |       0 |    0 |  76 |      0 |      0 |          0 |
+|     (u_fault_manager)      |  i2c_fault_manager |         36 |         36 |       0 |    0 |  41 |      0 |      0 |          0 |
+|     u_fault_detector       | i2c_fault_detector |         80 |         80 |       0 |    0 |  35 |      0 |      0 |          0 |
++----------------------------+--------------------+------------+------------+---------+------+-----+--------+--------+------------+
+
+

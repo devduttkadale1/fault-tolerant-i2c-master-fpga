@@ -1,0 +1,50 @@
+S8.4 FAULT-AWARE SYNTHESIS WARNING CLASSIFICATION
+=================================================
+
+Target:
+  Xilinx Artix-7 XC7A35T-1CPG236C
+  Vivado part: xc7a35tcpg236-1
+  Vivado: 2024.1
+  Clock constraint: 10.000 ns / 100 MHz
+
+Warning 1:
+  [Synth 8-6014] Unused sequential element latched_addr_reg was removed.
+
+Classification:
+  NON-BLOCKING / BENIGN DEAD-STATE OPTIMIZATION.
+
+Evidence:
+  Source signal latched_addr is reset and loaded from cmd_addr but has no
+  functional read after assignment. The address byte used by the active
+  transaction is loaded directly into tx_shift. Therefore latched_addr
+  is redundant stored state and may be removed without changing behavior.
+
+Warning 2:
+  [Synth 8-6014] Unused sequential element sda_release_pulse_reg was removed.
+
+Classification:
+  NON-BLOCKING / BENIGN BOOKKEEPING-STATE OPTIMIZATION.
+
+Evidence:
+  Source signal sda_release_pulse is reset and may capture
+  recovery_pulse_count. Its only functional read is the self-bookkeeping
+  zero test that controls that capture. The recorded value does not drive
+  a module output, recovery-state transition, recovery success/failure
+  decision, fault code, or bus-control signal. Therefore synthesis may
+  remove the register without changing externally observable behavior.
+
+Warning 3:
+  [Synth 8-7080] Parallel synthesis criteria is not met.
+
+Classification:
+  NON-BLOCKING TOOL/PERFORMANCE INFORMATION.
+
+Evidence:
+  This affects synthesis parallelization only, not synthesized design
+  functionality or implementation correctness.
+
+Final classification:
+  No synthesis warning constitutes an unresolved functional,
+  timing, routing, or implementation blocker.
+
+S8.4 WARNING CLASSIFICATION: PASS
