@@ -1,0 +1,4 @@
+# Vivado-generated reports:
+# - normalize repository line endings to LF
+# - preserve Vivado fixed-width table padding without whitespace-gate failures
+results/**/*.rpt text eol=lf -whitespace
