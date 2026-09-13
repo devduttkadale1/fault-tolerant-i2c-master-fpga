@@ -1,0 +1,66 @@
+S8.5 MATCHED POST-ROUTE VECTORLESS POWER COMPARISON
+===================================================
+
+Method
+------
+Tool:
+  Vivado 2024.1
+
+Target:
+  Xilinx Artix-7 XC7A35T-1CPG236C
+  Vivado part: xc7a35tcpg236-1
+
+Clock:
+  100 MHz
+  10.000 ns constraint
+
+Comparison method:
+  Both designs use the same matched Vivado synthesis, placement,
+  routing, timing, and report_power methodology.
+
+Important interpretation:
+  These values are Vivado post-route vectorless power estimates.
+  They are not measured hardware power.
+
+Baseline
+--------
+Total on-chip power : 0.072 W
+Dynamic power       : 0.002 W
+Device static power : 0.070 W
+Confidence          : Low
+
+Fault-aware
+-----------
+Total on-chip power : 0.075 W
+Dynamic power       : 0.005 W
+Device static power : 0.070 W
+Confidence          : Low
+
+Fault-aware minus baseline
+--------------------------
+Total delta          : 0.003 W
+Total relative delta : 4.17 %
+
+Dynamic delta          : 0.003 W
+Dynamic relative delta : 150.00 %
+
+Static delta          : 0.000 W
+Static relative delta : 0.00 %
+
+Interpretation
+--------------
+The fault-aware design has a 0.003 W increase in the Vivado
+post-route vectorless total-power estimate relative to the baseline.
+
+The reported total-power increase is 4.17% using the rounded
+values emitted by Vivado.
+
+The dynamic estimate increases by 0.003 W
+(150.00% relative to the baseline dynamic estimate), while
+the reported device-static estimate is unchanged at 0.070 W.
+
+Both reports have Low confidence. Therefore these values
+must be reported as vectorless estimates rather than measured power,
+and small differences must not be overstated.
+
+S8.5 POWER COMPARISON: PASS
