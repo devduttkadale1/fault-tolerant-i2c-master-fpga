@@ -1,0 +1,84 @@
+S8.6 MATCHED IMPLEMENTATION METRIC EXTRACTION
+==============================================
+
+Matched implementation conditions
+---------------------------------
+Vivado             : 2024.1
+Target              : xc7a35tcpg236-1
+Clock constraint    : 10.000 ns / 100 MHz
+Hardware validation : Not performed
+
+Baseline
+--------
+Post-synth LUTs          : 87
+Post-route LUTs          : 86
+Post-route FFs           : 66
+LUTRAMs                  : 0
+SRLs                     : 0
+RAMB36                   : 0
+RAMB18                   : 0
+DSP blocks               : 0
+BUFG                      : 1
+Post-route WNS           : 5.132 ns
+Post-route TNS           : 0.000 ns
+Failing setup endpoints  : 0
+Fully routed nets        : 153
+Routing errors           : 0
+Vectorless total power   : 0.072 W
+Vectorless dynamic power : 0.002 W
+Vectorless static power  : 0.070 W
+Power confidence         : Low
+
+Fault-aware
+-----------
+Post-synth LUTs          : 223
+Post-route LUTs          : 219
+Post-route FFs           : 144
+LUTRAMs                  : 0
+SRLs                     : 0
+RAMB36                   : 0
+RAMB18                   : 0
+DSP blocks               : 0
+BUFG                      : 1
+Post-route WNS           : 4.703 ns
+Post-route TNS           : 0.000 ns
+Failing setup endpoints  : 0
+Fully routed nets        : 342
+Routing errors           : 0
+Vectorless total power   : 0.075 W
+Vectorless dynamic power : 0.005 W
+Vectorless static power  : 0.070 W
+Power confidence         : Low
+
+Matched implementation deltas
+-----------------------------
+Post-synth LUT increase : +136 (+156.32%)
+Post-route LUT increase : +133 (+154.65%)
+Post-route FF increase  : +78 (+118.18%)
+
+WNS change              : -0.429 ns
+
+Derived timing quantities
+-------------------------
+Baseline inferred critical-path delay    : 4.868 ns
+Fault-aware inferred critical-path delay : 5.297 ns
+
+Baseline indicative implementation Fmax    : 205.42 MHz
+Fault-aware indicative implementation Fmax : 188.79 MHz
+Indicative Fmax change                     : -8.10%
+
+Fmax is calculated from:
+  Fmax = 1 / (10.000 ns - WNS)
+
+These Fmax values are implementation-derived estimates only.
+They are not measured hardware frequencies and are not
+physical-board validation results.
+
+Power
+-----
+Vivado post-route vectorless total-power change: +4.17%
+
+The power values are Vivado post-route vectorless power estimates,
+not measured hardware power. Both reports have Low confidence.
+
+S8.6 METRIC EXTRACTION: PASS
